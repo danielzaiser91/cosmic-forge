@@ -49,6 +49,8 @@ jobs:
             --arg changes "$CHANGES_VALUE" \
             --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{
+              content: "@everyone",
+              allowed_mentions: { parse: ["everyone"] },
               embeds: [{
                 title: ("🚀 Cosmic Forge v" + $src.version + " — " + $src.title),
                 url: "https://danielzaiser91.github.io/cosmic-forge/",
