@@ -93,25 +93,25 @@ const RELICS: Array = [
 # Each level has 4 regular enemies + 1 boss
 const ENEMIES: Array = [
 	[  # Level 0 — Miner's Run
-		{"name": "Cave Rat",     "hp": 30,  "atk": 8,  "special": "Gnaw",     "special_dmg": 15, "special_desc": "Bites for 15"},
-		{"name": "Stone Golem",  "hp": 55,  "atk": 12, "special": "Smash",    "special_dmg": 20, "special_desc": "Smashes for 20"},
-		{"name": "Iron Guard",   "hp": 75,  "atk": 14, "special": "Bash",     "special_dmg": 22, "special_desc": "Bashes for 22"},
-		{"name": "Cave Troll",   "hp": 90,  "atk": 16, "special": "Rampage",  "special_dmg": 28, "special_desc": "Rampages for 28"},
-		{"name": "Mountain King","hp": 150, "atk": 18, "special": "Avalanche","special_dmg": 40, "special_desc": "Triggers avalanche (40)", "is_boss": true},
+		{"name": "Cave Rat",     "hp": 28,  "atk": 6,  "special": "Gnaw",     "special_dmg": 10, "special_desc": "Bites for 10"},
+		{"name": "Stone Golem",  "hp": 50,  "atk": 9,  "special": "Smash",    "special_dmg": 16, "special_desc": "Smashes for 16"},
+		{"name": "Iron Guard",   "hp": 70,  "atk": 11, "special": "Bash",     "special_dmg": 18, "special_desc": "Bashes for 18"},
+		{"name": "Cave Troll",   "hp": 85,  "atk": 13, "special": "Rampage",  "special_dmg": 22, "special_desc": "Rampages for 22"},
+		{"name": "Mountain King","hp": 130, "atk": 14, "special": "Avalanche","special_dmg": 28, "special_desc": "Triggers avalanche (28)", "is_boss": true},
 	],
 	[  # Level 1 — Alchemist's Run
-		{"name": "Herb Sprite",   "hp": 35,  "atk": 9,  "special": "Sting",    "special_dmg": 16, "special_desc": "Stings for 16"},
-		{"name": "Poison Slime",  "hp": 60,  "atk": 13, "special": "Corrode",  "special_dmg": 22, "special_desc": "Corrodes for 22"},
-		{"name": "Flask Fiend",   "hp": 80,  "atk": 15, "special": "Splash",   "special_dmg": 24, "special_desc": "Splashes for 24"},
-		{"name": "Essence Wraith","hp": 100, "atk": 17, "special": "Drain",    "special_dmg": 30, "special_desc": "Drains for 30"},
-		{"name": "Grand Alchemist","hp":170, "atk": 20, "special": "Transmute","special_dmg": 45, "special_desc": "Transmutes for 45", "is_boss": true},
+		{"name": "Herb Sprite",   "hp": 32,  "atk": 7,  "special": "Sting",    "special_dmg": 12, "special_desc": "Stings for 12"},
+		{"name": "Poison Slime",  "hp": 55,  "atk": 10, "special": "Corrode",  "special_dmg": 18, "special_desc": "Corrodes for 18"},
+		{"name": "Flask Fiend",   "hp": 75,  "atk": 12, "special": "Splash",   "special_dmg": 20, "special_desc": "Splashes for 20"},
+		{"name": "Essence Wraith","hp": 95,  "atk": 14, "special": "Drain",    "special_dmg": 24, "special_desc": "Drains for 24"},
+		{"name": "Grand Alchemist","hp":140, "atk": 15, "special": "Transmute","special_dmg": 30, "special_desc": "Transmutes for 30", "is_boss": true},
 	],
 	[  # Level 2 — Mage's Run
-		{"name": "Mana Wisp",    "hp": 40,  "atk": 10, "special": "Zap",       "special_dmg": 18, "special_desc": "Zaps for 18"},
-		{"name": "Spell Shade",  "hp": 65,  "atk": 14, "special": "Hex",       "special_dmg": 24, "special_desc": "Hexes for 24"},
-		{"name": "Rune Golem",   "hp": 85,  "atk": 16, "special": "Overload",  "special_dmg": 26, "special_desc": "Overloads for 26"},
-		{"name": "Arcane Golem", "hp": 110, "atk": 18, "special": "Nullify",   "special_dmg": 32, "special_desc": "Nullifies for 32"},
-		{"name": "The Archmage", "hp": 190, "atk": 22, "special": "Obliterate","special_dmg": 50, "special_desc": "Obliterates for 50", "is_boss": true},
+		{"name": "Mana Wisp",    "hp": 38,  "atk": 8,  "special": "Zap",       "special_dmg": 14, "special_desc": "Zaps for 14"},
+		{"name": "Spell Shade",  "hp": 60,  "atk": 11, "special": "Hex",       "special_dmg": 20, "special_desc": "Hexes for 20"},
+		{"name": "Rune Golem",   "hp": 80,  "atk": 13, "special": "Overload",  "special_dmg": 22, "special_desc": "Overloads for 22"},
+		{"name": "Arcane Golem", "hp": 100, "atk": 15, "special": "Nullify",   "special_dmg": 26, "special_desc": "Nullifies for 26"},
+		{"name": "The Archmage", "hp": 165, "atk": 17, "special": "Obliterate","special_dmg": 34, "special_desc": "Obliterates for 34", "is_boss": true},
 	],
 ]
 

@@ -43,6 +43,7 @@ var _lbl_telegraph: Label
 var _btn_attack: Button
 var _btn_shield: Button
 var _btn_special: Button
+var _lbl_run_atk: Label
 var _log_label: Label
 
 # Relic choice refs
@@ -312,6 +313,10 @@ func _build_run_panel() -> void:
 	hp_row.add_child(sp2)
 	_lbl_enemy_hp = _make_label("Enemy HP: 0 / 0", 16, C_RED)
 	hp_row.add_child(_lbl_enemy_hp)
+	var sp3 = Control.new(); sp3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hp_row.add_child(sp3)
+	_lbl_run_atk = _make_label("ATK: 12", 14, C_GOLD)
+	hp_row.add_child(_lbl_run_atk)
 
 	vbox.add_child(_make_hsep())
 
@@ -561,10 +566,12 @@ func _refresh_run() -> void:
 	_lbl_telegraph.text = "▶ " + GameState.get_enemy_telegraph()
 
 	# Update action button labels
+	_lbl_run_atk.text = "⚔ ATK: %d" % GameState.player_attack
 	_btn_attack.text = "⚔  ATTACK\n(%d dmg)" % GameState.player_attack
 	_btn_shield.text = "🛡  SHIELD\n(+15 def)"
 	var special = GameData.PLAYER_SPECIALS[lvl]
-	_btn_special.text = "✨  %s\n(%s)" % [special["name"].to_upper(), special["desc"]]
+	var special_dmg = GameState.player_attack * (3 if lvl == 2 else 2)
+	_btn_special.text = "✨  %s\n(%d dmg)" % [special["name"].to_upper(), special_dmg]
 
 	# Update log
 	var log_lines = GameState.combat_log

@@ -138,9 +138,28 @@ func start_prestige_run() -> void:
 		return
 	run_active = true
 	run_room = 0
-	player_hp = player_max_hp
 	player_defense_this_round = 0
 	combat_log.clear()
+
+	# Stats scale with accumulated resources — farm more for a stronger run
+	var r2 = resources[2]
+	var r1 = resources[1]
+	var total_buildings = building_counts[0] + building_counts[1] + building_counts[2]
+
+	# Attack: base 12 + 1 per 60 R2 + 1 per 2 buildings
+	player_attack = 12 + int(r2 / 60.0) + int(total_buildings / 2)
+	player_attack = min(player_attack, 60)  # cap to avoid trivial runs
+
+	# Max HP: base 100 + 5 per 30 R1 + 3 per building
+	player_max_hp = 100 + int(r1 / 30.0) * 5 + total_buildings * 3
+	player_max_hp = min(player_max_hp, 300)
+
+	player_hp = player_max_hp
+
+	var atk_bonus = player_attack - 12
+	var hp_bonus = player_max_hp - 100
+	combat_log.append("Run started! ATK: %d (+%d from resources)  HP: %d (+%d from resources)" % [
+		player_attack, atk_bonus, player_max_hp, hp_bonus])
 	_load_enemy(run_room)
 	run_started.emit()
 
@@ -245,9 +264,12 @@ func _handle_enemy_action(log_lines: Array[String]) -> void:
 func _on_enemy_defeated() -> void:
 	run_room += 1
 	if run_room >= 5:
-		# All rooms done — run victory
 		_on_run_won()
 	else:
+		# Restore 25% max HP between rooms
+		var heal = int(player_max_hp * 0.25)
+		player_hp = min(player_max_hp, player_hp + heal)
+		combat_log.append("--- Room cleared! Healed %d HP (now %d/%d) ---" % [heal, player_hp, player_max_hp])
 		combat_log.append("--- Entering room %d ---" % (run_room + 1))
 		_load_enemy(run_room)
 		state_changed.emit()
