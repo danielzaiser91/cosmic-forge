@@ -53,7 +53,7 @@ jobs:
           printf '@everyone\n\n%s\n\n%s\n\n%s\n%s\n\n%s\n' \
             "$H1" "$DESC" "$H2" "$CHANGES" "$LINK" > /tmp/text.txt
           jq -n --rawfile content /tmp/text.txt \
-            '{"content":$content,"allowed_mentions":{"parse":["everyone"]}}' \
+            '{"content":$content,"allowed_mentions":{"parse":["everyone"]},"flags":4}' \
             > /tmp/payload.json
           cat /tmp/payload.json
 
