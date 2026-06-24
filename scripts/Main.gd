@@ -55,6 +55,7 @@ var _lbl_ascension_nr: Label
 var _lbl_ascension_relics: Label
 var _lbl_ascension_bonus: Label
 var _lbl_ascension_count: Label  # shown in header
+var _milestone_strip: HBoxContainer
 
 # Offline panel refs
 var _lbl_offline_time: Label
@@ -200,7 +201,7 @@ func _build_buildings_column(parent: Control) -> void:
 	vbox.add_child(_make_hsep())
 
 	_building_rows.clear()
-	for i in 3:
+	for i in 5:
 		var row = _build_building_row(i)
 		vbox.add_child(row["container"])
 		_building_rows.append(row)
@@ -256,7 +257,7 @@ func _build_upgrades_column(parent: Control) -> void:
 	vbox.add_child(_make_hsep())
 
 	_upgrade_rows.clear()
-	for i in 3:
+	for i in 5:
 		var row = _build_upgrade_row(i)
 		vbox.add_child(row["container"])
 		_upgrade_rows.append(row)
@@ -474,6 +475,17 @@ func _build_ascension_panel() -> void:
 	btn.pressed.connect(_on_ascend_pressed)
 	center.add_child(btn)
 
+	center.add_child(_make_hsep())
+
+	# Milestone progress strip
+	var strip_lbl = _make_label("MILESTONE PROGRESSION", 11, C_DIM, true)
+	strip_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	center.add_child(strip_lbl)
+	_milestone_strip = HBoxContainer.new()
+	_milestone_strip.add_theme_constant_override("separation", 10)
+	_milestone_strip.alignment = BoxContainer.ALIGNMENT_CENTER
+	center.add_child(_milestone_strip)
+
 # ── Build: Offline progress panel ────────────────────────────────────────────
 func _build_offline_panel() -> void:
 	_offline_panel = PanelContainer.new()
@@ -507,6 +519,7 @@ func _connect_signals() -> void:
 	GameState.run_ended.connect(_on_run_ended)
 	GameState.prestige_happened.connect(_on_prestige_happened)
 	GameState.game_complete.connect(_on_game_complete)
+	GameState.milestone_reached.connect(_on_milestone_reached)
 
 # ── UI Refresh ────────────────────────────────────────────────────────────────
 func _refresh_ui() -> void:
@@ -540,12 +553,21 @@ func _refresh_idle() -> void:
 		else:
 			_lbl_per_sec[i].text = ""
 
-	# Buildings
-	for i in 3:
+	var asc = GameState.ascension_count
+	var unlocked_b = GameData.unlocked_building_count(lvl, asc)
+	var unlocked_u = GameData.unlocked_upgrade_count(lvl, asc)
+
+	# Buildings (show/hide based on milestone)
+	for i in 5:
 		var row = _building_rows[i]
+		if i >= unlocked_b:
+			row["container"].visible = false
+			continue
+		row["container"].visible = true
 		var b = bld_data[i]
 		var produces_res = GameData.RESOURCES[lvl][b["produces"]]
-		row["lbl_name"].text = "%s  (+%.2f %s/s each)" % [b["name"], b["base_production"], produces_res["name"]]
+		var milestone_tag = " 🔓" if b.get("milestone", 0) > 0 else ""
+		row["lbl_name"].text = "%s%s  (+%.2f %s/s each)" % [b["name"], milestone_tag, b["base_production"], produces_res["name"]]
 		row["lbl_count"].text = "x%d" % GameState.building_counts[i]
 		var cost = GameState.building_cost(i)
 		var cost_res = GameData.RESOURCES[lvl][b["cost_resource"]]
@@ -554,11 +576,16 @@ func _refresh_idle() -> void:
 		row["btn"].disabled = not can_afford
 		row["btn"].modulate = C_TEXT if can_afford else C_DIM
 
-	# Upgrades
-	for i in 3:
+	# Upgrades (show/hide based on milestone)
+	for i in 5:
 		var row = _upgrade_rows[i]
+		if i >= unlocked_u:
+			row["container"].visible = false
+			continue
+		row["container"].visible = true
 		var u = upg_data[i]
-		row["lbl_name"].text = u["name"]
+		var milestone_tag = " 🔓" if u.get("milestone", 0) > 0 else ""
+		row["lbl_name"].text = u["name"] + milestone_tag
 		var cost_res_name = GameData.RESOURCES[lvl][u["cost_resource"]]["name"]
 		row["lbl_desc"].text = "%s\nCost: %s %s" % [u["desc"], GameData.format_number(u["cost"]), cost_res_name]
 		if GameState.upgrades_bought[i]:
@@ -572,7 +599,7 @@ func _refresh_idle() -> void:
 			row["btn"].modulate = C_TEXT if can_afford else C_DIM
 
 	# Progress bar
-	var goal = GameData.PRESTIGE_GOALS[lvl]
+	var goal = GameData.prestige_goal(lvl, asc)
 	var current_r2 = GameState.resources[2]
 	var pct = clampf(current_r2 / goal * 100.0, 0.0, 100.0)
 	_progress_bar.value = pct
@@ -726,14 +753,80 @@ func _on_game_complete(ascension: int, relics_collected: Array) -> void:
 		_lbl_ascension_relics.text = "Relics collected this run:\n" + "   ".join(relic_names)
 
 	var next_prod = int(ascension * 10)
-	var next_diff = int((pow(1.15, ascension) - 1.0) * 100)
-	_lbl_ascension_bonus.text = "Next run:  +%d%% production   |   enemies +%d%% HP/ATK" % [next_prod, next_diff]
+	var next_diff = int((GameState.enemy_scale() * (1.15 if ascension < 20 else 1.0) - 1.0) * 100)
+	var goal_note = "  |  goals -25%" if ascension >= 20 else ""
+	_lbl_ascension_bonus.text = "Next run:  +%d%% production   |   enemies +%d%% HP/ATK%s" % [next_prod, next_diff, goal_note]
+
+	# Build milestone strip
+	for child in _milestone_strip.get_children():
+		_milestone_strip.remove_child(child)
+		child.queue_free()
+
+	var thresholds = [2, 5, 10, 20]
+	for t in thresholds:
+		var m = GameData.MILESTONES[t]
+		var done = ascension >= t
+		var is_next = not done and (t == thresholds[0] or ascension >= thresholds[thresholds.find(t) - 1])
+		var chip = PanelContainer.new()
+		var sty = StyleBoxFlat.new()
+		sty.set_corner_radius_all(6)
+		if done:
+			sty.bg_color = Color(C_GREEN.r, C_GREEN.g, C_GREEN.b, 0.25)
+			sty.border_color = C_GREEN
+		elif is_next:
+			sty.bg_color = Color(C_GOLD.r, C_GOLD.g, C_GOLD.b, 0.20)
+			sty.border_color = C_GOLD
+		else:
+			sty.bg_color = Color(0.15, 0.15, 0.20)
+			sty.border_color = C_BORDER
+		sty.set_border_width_all(1)
+		chip.add_theme_stylebox_override("panel", sty)
+		chip.custom_minimum_size = Vector2(120, 0)
+		var vb = VBoxContainer.new()
+		vb.add_theme_constant_override("separation", 2)
+		chip.add_child(vb)
+		var prefix = "✓ " if done else ("▶ " if is_next else "🔒 ")
+		var col = C_GREEN if done else (C_GOLD if is_next else C_DIM)
+		var lbl_t = _make_label("%s Asc #%d" % [prefix, t], 11, col, true)
+		lbl_t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vb.add_child(lbl_t)
+		var lbl_n = _make_label(m["name"], 10, col)
+		lbl_n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		vb.add_child(lbl_n)
+		_milestone_strip.add_child(chip)
+
+	# Check if all milestones done
+	if ascension >= GameData.MILESTONE_MAX:
+		var end_lbl = _make_label("All milestones complete — you've reached the end of new content!", 11, C_PURPLE)
+		end_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		end_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_milestone_strip.get_parent().add_child(end_lbl)
 
 func _on_ascend_pressed() -> void:
 	_ascension_panel.visible = false
 	GameState.do_ascension()
 	_idle_panel.visible = true
 	_refresh_idle()
+
+func _on_milestone_reached(milestone: Dictionary) -> void:
+	var lbl = _make_label("🔓  MILESTONE UNLOCKED: %s\n%s" % [milestone["name"], milestone["desc"]], 15, C_GOLD, true)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.custom_minimum_size = Vector2(500, 0)
+	lbl.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	var panel = PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	var sty = StyleBoxFlat.new()
+	sty.bg_color = Color(0.07, 0.07, 0.12)
+	sty.border_color = C_GOLD
+	sty.set_border_width_all(2)
+	sty.set_corner_radius_all(8)
+	panel.add_theme_stylebox_override("panel", sty)
+	panel.add_child(lbl)
+	add_child(panel)
+	await get_tree().create_timer(4.0).timeout
+	if is_instance_valid(panel):
+		panel.queue_free()
 
 func _on_offline_ok() -> void:
 	_offline_panel.visible = false

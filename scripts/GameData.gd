@@ -33,19 +33,25 @@ const RESOURCES: Array = [
 # cost_resource: which resource index to spend
 const BUILDINGS: Array = [
 	[  # Level 0
-		{"name": "Quarry",    "produces": 0, "base_production": 1.0,  "base_cost": 10.0,  "cost_resource": 0},
-		{"name": "Forge",     "produces": 1, "base_production": 0.4,  "base_cost": 15.0,  "cost_resource": 0},
-		{"name": "Gold Mine", "produces": 2, "base_production": 0.15, "base_cost": 20.0,  "cost_resource": 1},
+		{"name": "Quarry",        "produces": 0, "base_production": 1.0,  "base_cost": 10.0,  "cost_resource": 0},
+		{"name": "Forge",         "produces": 1, "base_production": 0.4,  "base_cost": 15.0,  "cost_resource": 0},
+		{"name": "Gold Mine",     "produces": 2, "base_production": 0.15, "base_cost": 20.0,  "cost_resource": 1},
+		{"name": "Mithril Vein",  "produces": 2, "base_production": 0.10, "base_cost": 40.0,  "cost_resource": 1, "milestone": 2},
+		{"name": "Dragon Forge",  "produces": 2, "base_production": 0.35, "base_cost": 100.0, "cost_resource": 2, "milestone": 10},
 	],
 	[  # Level 1
-		{"name": "Garden",     "produces": 0, "base_production": 1.0,  "base_cost": 10.0, "cost_resource": 0},
-		{"name": "Laboratory", "produces": 1, "base_production": 0.4,  "base_cost": 15.0, "cost_resource": 0},
-		{"name": "Distillery", "produces": 2, "base_production": 0.15, "base_cost": 20.0, "cost_resource": 1},
+		{"name": "Garden",               "produces": 0, "base_production": 1.0,  "base_cost": 10.0,  "cost_resource": 0},
+		{"name": "Laboratory",           "produces": 1, "base_production": 0.4,  "base_cost": 15.0,  "cost_resource": 0},
+		{"name": "Distillery",           "produces": 2, "base_production": 0.15, "base_cost": 20.0,  "cost_resource": 1},
+		{"name": "Philosopher's Alembic","produces": 2, "base_production": 0.10, "base_cost": 40.0,  "cost_resource": 1, "milestone": 2},
+		{"name": "Eternal Crucible",     "produces": 2, "base_production": 0.35, "base_cost": 100.0, "cost_resource": 2, "milestone": 10},
 	],
 	[  # Level 2
-		{"name": "Mana Font",     "produces": 0, "base_production": 1.0,  "base_cost": 10.0, "cost_resource": 0},
-		{"name": "Spellbook",     "produces": 1, "base_production": 0.4,  "base_cost": 15.0, "cost_resource": 0},
-		{"name": "Arcane Tower",  "produces": 2, "base_production": 0.15, "base_cost": 20.0, "cost_resource": 1},
+		{"name": "Mana Font",    "produces": 0, "base_production": 1.0,  "base_cost": 10.0,  "cost_resource": 0},
+		{"name": "Spellbook",    "produces": 1, "base_production": 0.4,  "base_cost": 15.0,  "cost_resource": 0},
+		{"name": "Arcane Tower", "produces": 2, "base_production": 0.15, "base_cost": 20.0,  "cost_resource": 1},
+		{"name": "Ley Nexus",    "produces": 2, "base_production": 0.10, "base_cost": 40.0,  "cost_resource": 1, "milestone": 2},
+		{"name": "Void Crystal", "produces": 2, "base_production": 0.35, "base_cost": 100.0, "cost_resource": 2, "milestone": 10},
 	],
 ]
 
@@ -58,16 +64,22 @@ const UPGRADES: Array = [
 		{"name": "Sharp Pickaxe",   "desc": "Click gives x3 Stone",      "type": "click",    "multiplier": 3.0, "cost": 50.0,  "cost_resource": 0},
 		{"name": "Blast Furnace",   "desc": "Forge production x2",        "type": "building", "building_index": 1, "multiplier": 2.0, "cost": 30.0, "cost_resource": 1},
 		{"name": "Deep Veins",      "desc": "Gold Mine production x2",    "type": "building", "building_index": 2, "multiplier": 2.0, "cost": 50.0, "cost_resource": 2},
+		{"name": "Grand Mastery",   "desc": "ALL buildings x2",           "type": "global",   "multiplier": 2.0, "cost": 150.0, "cost_resource": 2, "milestone": 5},
+		{"name": "Earth's Blessing","desc": "ALL buildings x3",           "type": "global",   "multiplier": 3.0, "cost": 500.0, "cost_resource": 2, "milestone": 20},
 	],
 	[  # Level 1
-		{"name": "Green Thumb",     "desc": "Click gives x3 Herbs",       "type": "click",    "multiplier": 3.0, "cost": 50.0,  "cost_resource": 0},
-		{"name": "Potent Brew",     "desc": "Laboratory production x2",   "type": "building", "building_index": 1, "multiplier": 2.0, "cost": 30.0, "cost_resource": 1},
-		{"name": "Pure Distillation","desc": "Distillery production x2",  "type": "building", "building_index": 2, "multiplier": 2.0, "cost": 50.0, "cost_resource": 2},
+		{"name": "Green Thumb",          "desc": "Click gives x3 Herbs",      "type": "click",    "multiplier": 3.0, "cost": 50.0,  "cost_resource": 0},
+		{"name": "Potent Brew",          "desc": "Laboratory production x2",  "type": "building", "building_index": 1, "multiplier": 2.0, "cost": 30.0, "cost_resource": 1},
+		{"name": "Pure Distillation",    "desc": "Distillery production x2",  "type": "building", "building_index": 2, "multiplier": 2.0, "cost": 50.0, "cost_resource": 2},
+		{"name": "Eternal Brew",         "desc": "ALL buildings x2",          "type": "global",   "multiplier": 2.0, "cost": 150.0, "cost_resource": 2, "milestone": 5},
+		{"name": "Alchemical Perfection","desc": "ALL buildings x3",          "type": "global",   "multiplier": 3.0, "cost": 500.0, "cost_resource": 2, "milestone": 20},
 	],
 	[  # Level 2
-		{"name": "Mana Attunement", "desc": "Click gives x3 Mana",        "type": "click",    "multiplier": 3.0, "cost": 50.0,  "cost_resource": 0},
-		{"name": "Spell Mastery",   "desc": "Spellbook production x2",    "type": "building", "building_index": 1, "multiplier": 2.0, "cost": 30.0, "cost_resource": 1},
-		{"name": "Arcane Focus",    "desc": "Arcane Tower production x2", "type": "building", "building_index": 2, "multiplier": 2.0, "cost": 50.0, "cost_resource": 1},
+		{"name": "Mana Attunement",      "desc": "Click gives x3 Mana",       "type": "click",    "multiplier": 3.0, "cost": 50.0,  "cost_resource": 0},
+		{"name": "Spell Mastery",        "desc": "Spellbook production x2",   "type": "building", "building_index": 1, "multiplier": 2.0, "cost": 30.0, "cost_resource": 1},
+		{"name": "Arcane Focus",         "desc": "Arcane Tower production x2","type": "building", "building_index": 2, "multiplier": 2.0, "cost": 50.0, "cost_resource": 1},
+		{"name": "Mana Surge",           "desc": "ALL buildings x2",          "type": "global",   "multiplier": 2.0, "cost": 150.0, "cost_resource": 2, "milestone": 5},
+		{"name": "Arcane Transcendence", "desc": "ALL buildings x3",          "type": "global",   "multiplier": 3.0, "cost": 500.0, "cost_resource": 2, "milestone": 20},
 	],
 ]
 
@@ -122,6 +134,15 @@ const PLAYER_SPECIALS: Array = [
 	{"name": "Arcane Blast", "desc": "Deal 3x attack damage"},
 ]
 
+# ── Milestones ────────────────────────────────────────────────────────────────
+const MILESTONES: Dictionary = {
+	2:  {"icon": "🏗", "name": "Mastery",       "desc": "4th building slot unlocked per level (direct R2 production)"},
+	5:  {"icon": "⚔", "name": "Elite Threat",   "desc": "4th upgrade slot unlocked + enemies get +50% HP (one-time spike)"},
+	10: {"icon": "🏰", "name": "Ancient Power", "desc": "5th building slot unlocked per level (costs R2, high output)"},
+	20: {"icon": "✨", "name": "Transcendence", "desc": "5th upgrade slot unlocked + prestige goals reduced by 25%"},
+}
+const MILESTONE_MAX: int = 20  # last ascension that unlocks new content
+
 # Building cost scale factor
 const COST_SCALE: float = 1.15
 
@@ -138,6 +159,24 @@ static func format_number(n: float) -> String:
 		return "%.1fM" % (n / 1_000_000.0)
 	else:
 		return "%.1fB" % (n / 1_000_000_000.0)
+
+static func unlocked_building_count(level: int, ascension: int) -> int:
+	var n = 3
+	if ascension >= 2:  n = 4
+	if ascension >= 10: n = 5
+	return min(n, BUILDINGS[level].size())
+
+static func unlocked_upgrade_count(level: int, ascension: int) -> int:
+	var n = 3
+	if ascension >= 5:  n = 4
+	if ascension >= 20: n = 5
+	return min(n, UPGRADES[level].size())
+
+static func prestige_goal(level: int, ascension: int) -> float:
+	var base = PRESTIGE_GOALS[level]
+	if ascension >= 20:
+		base *= 0.75  # -25% at milestone 20
+	return base
 
 static func building_cost(level: int, building_index: int, count: int) -> float:
 	var base = BUILDINGS[level][building_index]["base_cost"]

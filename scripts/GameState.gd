@@ -6,6 +6,7 @@ signal run_started
 signal run_ended(victory: bool, relic_choices: Array)
 signal prestige_happened(new_level: int)
 signal game_complete(ascension: int, relics_collected: Array)
+signal milestone_reached(milestone: Dictionary)
 
 # ── Meta progress (survives full reset) ───────────────────────────────────────
 var ascension_count: int = 0           # completed full runs (Miner→Alch→Mage)
@@ -13,8 +14,8 @@ var ascension_count: int = 0           # completed full runs (Miner→Alch→Mag
 # ── Idle state ────────────────────────────────────────────────────────────────
 var prestige_level: int = 0            # 0=Miner, 1=Alchemist, 2=Mage
 var resources: Array[float] = [0.0, 0.0, 0.0]
-var building_counts: Array[int] = [0, 0, 0]
-var upgrades_bought: Array[bool] = [false, false, false]
+var building_counts: Array[int] = [0, 0, 0, 0, 0]
+var upgrades_bought: Array[bool] = [false, false, false, false, false]
 var relics_owned: Array = []           # list of relic id strings collected this run
 var run_available: bool = false
 var prev_r2_amount: float = 0.0       # for "Ancient Knowledge" relic
@@ -47,14 +48,13 @@ func _process(delta: float) -> void:
 	if run_active:
 		return
 	var changed := false
-	for i in 3:
+	var unlocked = GameData.unlocked_building_count(prestige_level, ascension_count)
+	for i in unlocked:
 		var bdata = GameData.BUILDINGS[prestige_level][i]
 		var count = building_counts[i]
 		if count == 0:
 			continue
-		var produced = bdata["base_production"] * count * delta * _production_mult
-		# upgrade multiplier per building
-		produced *= _building_mult(i)
+		var produced = bdata["base_production"] * count * delta * _production_mult * _building_mult(i) * _global_upgrade_mult()
 		resources[bdata["produces"]] += produced
 		changed = true
 	if changed:
@@ -65,9 +65,18 @@ func _process(delta: float) -> void:
 func _building_mult(building_index: int) -> float:
 	var upgrades = GameData.UPGRADES[prestige_level]
 	var mult := 1.0
-	for i in upgrades.size():
+	for i in min(upgrades.size(), upgrades_bought.size()):
 		var u = upgrades[i]
-		if upgrades_bought[i] and u["type"] == "building" and u["building_index"] == building_index:
+		if upgrades_bought[i] and u["type"] == "building" and u.get("building_index") == building_index:
+			mult *= u["multiplier"]
+	return mult
+
+func _global_upgrade_mult() -> float:
+	var upgrades = GameData.UPGRADES[prestige_level]
+	var mult := 1.0
+	for i in min(upgrades.size(), upgrades_bought.size()):
+		var u = upgrades[i]
+		if upgrades_bought[i] and u["type"] == "global":
 			mult *= u["multiplier"]
 	return mult
 
@@ -89,7 +98,7 @@ func _recalculate_multipliers() -> void:
 					"offline":       _offline_mult    *= r["value"]
 
 func _check_prestige_goal() -> void:
-	var goal = GameData.PRESTIGE_GOALS[prestige_level]
+	var goal = GameData.prestige_goal(prestige_level, ascension_count)
 	run_available = resources[2] >= goal
 
 func building_cost(index: int) -> float:
@@ -102,7 +111,7 @@ func upgrade_cost(index: int) -> float:
 
 func production_per_sec(building_index: int) -> float:
 	var bdata = GameData.BUILDINGS[prestige_level][building_index]
-	return bdata["base_production"] * building_counts[building_index] * _production_mult * _building_mult(building_index)
+	return bdata["base_production"] * building_counts[building_index] * _production_mult * _building_mult(building_index) * _global_upgrade_mult()
 
 # ── Actions ───────────────────────────────────────────────────────────────────
 func click_resource() -> void:
@@ -169,7 +178,10 @@ func start_prestige_run() -> void:
 	run_started.emit()
 
 func enemy_scale() -> float:
-	return pow(1.15, ascension_count)  # +15% HP per ascension, compounding
+	var base = pow(1.15, ascension_count)
+	if ascension_count >= 5:  base *= 1.5   # Milestone 5 spike
+	if ascension_count >= 10: base *= 1.5   # Milestone 10 spike
+	return base
 
 func _load_enemy(room: int) -> void:
 	var enemies = GameData.ENEMIES[prestige_level]
@@ -324,8 +336,8 @@ func _do_prestige() -> void:
 		start_bonus = prev_r2_amount * 0.1
 
 	resources = [start_bonus, 0.0, 0.0]
-	building_counts = [0, 0, 0]
-	upgrades_bought = [false, false, false]
+	building_counts = [0, 0, 0, 0, 0]
+	upgrades_bought = [false, false, false, false, false]
 	run_available = false
 	SaveManager.save_game()
 	prestige_happened.emit(prestige_level)
@@ -333,15 +345,19 @@ func _do_prestige() -> void:
 
 # Called when player clicks "Ascend" on the game complete screen
 func do_ascension() -> void:
+	var prev = ascension_count
 	ascension_count += 1
 	prestige_level = 0
 	resources = [0.0, 0.0, 0.0]
-	building_counts = [0, 0, 0]
-	upgrades_bought = [false, false, false]
+	building_counts = [0, 0, 0, 0, 0]
+	upgrades_bought = [false, false, false, false, false]
 	relics_owned = []
 	run_available = false
 	_recalculate_multipliers()
 	SaveManager.save_game()
+	# Fire milestone signal if a threshold was just crossed
+	if ascension_count in GameData.MILESTONES:
+		milestone_reached.emit(GameData.MILESTONES[ascension_count])
 	prestige_happened.emit(0)
 	state_changed.emit()
 
@@ -374,10 +390,12 @@ func from_dict(d: Dictionary) -> void:
 	prestige_level   = d.get("prestige_level", 0)
 	var r = d.get("resources", [0.0, 0.0, 0.0])
 	resources        = [float(r[0]), float(r[1]), float(r[2])]
-	var bc = d.get("building_counts", [0, 0, 0])
-	building_counts  = [int(bc[0]), int(bc[1]), int(bc[2])]
-	var ub = d.get("upgrades_bought", [false, false, false])
-	upgrades_bought  = [bool(ub[0]), bool(ub[1]), bool(ub[2])]
+	var bc = d.get("building_counts", [0, 0, 0, 0, 0])
+	while bc.size() < 5: bc.append(0)
+	building_counts = [int(bc[0]), int(bc[1]), int(bc[2]), int(bc[3]), int(bc[4])]
+	var ub = d.get("upgrades_bought", [false, false, false, false, false])
+	while ub.size() < 5: ub.append(false)
+	upgrades_bought = [bool(ub[0]), bool(ub[1]), bool(ub[2]), bool(ub[3]), bool(ub[4])]
 	relics_owned     = d.get("relics_owned", [])
 	_recalculate_multipliers()
 	_check_prestige_goal()
