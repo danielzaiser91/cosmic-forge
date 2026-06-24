@@ -49,6 +49,13 @@ var _log_label: Label
 # Relic choice refs
 var _relic_choice_btns: Array[Button] = []
 
+# Ascension panel refs
+var _ascension_panel: Control
+var _lbl_ascension_nr: Label
+var _lbl_ascension_relics: Label
+var _lbl_ascension_bonus: Label
+var _lbl_ascension_count: Label  # shown in header
+
 # Offline panel refs
 var _lbl_offline_time: Label
 var _btn_offline_ok: Button
@@ -59,6 +66,7 @@ func _ready() -> void:
 	_build_idle_panel()
 	_build_run_panel()
 	_build_relic_panel()
+	_build_ascension_panel()
 	_build_offline_panel()
 	_connect_signals()
 	_refresh_ui()
@@ -92,6 +100,8 @@ func _build_idle_panel() -> void:
 	hrow.add_child(_lbl_level)
 	var spacer2 = Control.new(); spacer2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hrow.add_child(spacer2)
+	_lbl_ascension_count = _make_label("Ascension #0", 12, C_DIM)
+	hrow.add_child(_lbl_ascension_count)
 
 	# Prestige run button
 	_btn_prestige = _make_button("⚔  Start Prestige Run", C_PURPLE)
@@ -418,6 +428,52 @@ func _build_relic_panel() -> void:
 	skip_btn.custom_minimum_size = Vector2(160, 32)
 	vbox.add_child(skip_btn)
 
+# ── Build: Ascension complete panel ──────────────────────────────────────────
+func _build_ascension_panel() -> void:
+	_ascension_panel = PanelContainer.new()
+	_ascension_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_ascension_panel.visible = false
+	var bg = StyleBoxFlat.new()
+	bg.bg_color = Color(0.04, 0.04, 0.10, 0.97)
+	_ascension_panel.add_theme_stylebox_override("panel", bg)
+	add_child(_ascension_panel)
+
+	var center = VBoxContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	center.custom_minimum_size = Vector2(600, 400)
+	center.add_theme_constant_override("separation", 18)
+	_ascension_panel.add_child(center)
+
+	var ttl = _make_label("✨  ASCENSION COMPLETE  ✨", 28, C_GOLD, true)
+	ttl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	center.add_child(ttl)
+
+	_lbl_ascension_nr = _make_label("", 16, C_BLUE)
+	_lbl_ascension_nr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	center.add_child(_lbl_ascension_nr)
+
+	center.add_child(_make_hsep())
+
+	_lbl_ascension_relics = _make_label("", 13, C_TEXT)
+	_lbl_ascension_relics.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_lbl_ascension_relics.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	center.add_child(_lbl_ascension_relics)
+
+	center.add_child(_make_hsep())
+
+	_lbl_ascension_bonus = _make_label("", 14, C_GREEN, true)
+	_lbl_ascension_bonus.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	center.add_child(_lbl_ascension_bonus)
+
+	var sub = _make_label("All relics are lost. You begin anew — stronger.", 12, C_DIM)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	center.add_child(sub)
+
+	var btn = _make_button("⚡  ASCEND  —  Start Run #%d" % (GameState.ascension_count + 1), C_GOLD)
+	btn.custom_minimum_size = Vector2(300, 50)
+	btn.pressed.connect(_on_ascend_pressed)
+	center.add_child(btn)
+
 # ── Build: Offline progress panel ────────────────────────────────────────────
 func _build_offline_panel() -> void:
 	_offline_panel = PanelContainer.new()
@@ -450,7 +506,7 @@ func _connect_signals() -> void:
 	GameState.run_started.connect(_on_run_started)
 	GameState.run_ended.connect(_on_run_ended)
 	GameState.prestige_happened.connect(_on_prestige_happened)
-	GameState.relic_chosen.connect(_refresh_ui)
+	GameState.game_complete.connect(_on_game_complete)
 
 # ── UI Refresh ────────────────────────────────────────────────────────────────
 func _refresh_ui() -> void:
@@ -463,6 +519,13 @@ func _refresh_idle() -> void:
 	var res_data = GameData.RESOURCES[lvl]
 	var bld_data = GameData.BUILDINGS[lvl]
 	var upg_data = GameData.UPGRADES[lvl]
+
+	var asc = GameState.ascension_count
+	if asc > 0:
+		_lbl_ascension_count.text = "Ascension #%d  (+%d%% prod.)" % [asc, int(GameState.ascension_production_bonus() * 100)]
+		_lbl_ascension_count.add_theme_color_override("font_color", C_GOLD)
+	else:
+		_lbl_ascension_count.text = ""
 
 	_lbl_level.text = "Level %d — %s" % [lvl, GameData.LEVEL_NAMES[lvl]]
 	_btn_click.text = GameData.LEVEL_CLICK_LABELS[lvl]
@@ -636,10 +699,39 @@ func _on_relic_chosen(index: int) -> void:
 	if index >= 0 and index < GameState.pending_relic_choices.size():
 		relic_id = GameState.pending_relic_choices[index]["id"]
 	GameState.choose_relic(relic_id)
-	_idle_panel.visible = true
-	_refresh_idle()
+	# game_complete signal will take over if this was the Mage prestige,
+	# otherwise show idle again
+	if not _ascension_panel.visible:
+		_idle_panel.visible = true
+		_refresh_idle()
 
 func _on_prestige_happened(_new_level: int) -> void:
+	_refresh_idle()
+
+func _on_game_complete(ascension: int, relics_collected: Array) -> void:
+	_relic_panel.visible = false
+	_run_panel.visible = false
+	_idle_panel.visible = false
+	_ascension_panel.visible = true
+
+	_lbl_ascension_nr.text = "You have completed Run #%d!" % ascension
+	var relic_names = []
+	for rid in relics_collected:
+		for r in GameData.RELICS:
+			if r["id"] == rid:
+				relic_names.append("%s %s" % [r["icon"], r["name"]])
+	if relic_names.is_empty():
+		_lbl_ascension_relics.text = "Relics collected: none"
+	else:
+		_lbl_ascension_relics.text = "Relics collected this run:\n" + "   ".join(relic_names)
+
+	var next_bonus = int((ascension) * 10)
+	_lbl_ascension_bonus.text = "Next run bonus: +%d%% production (permanent)" % next_bonus
+
+func _on_ascend_pressed() -> void:
+	_ascension_panel.visible = false
+	GameState.do_ascension()
+	_idle_panel.visible = true
 	_refresh_idle()
 
 func _on_offline_ok() -> void:

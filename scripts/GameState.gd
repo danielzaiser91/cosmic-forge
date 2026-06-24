@@ -1,19 +1,22 @@
 extends Node
 # GameState — autoload, drives all game logic and emits signals for the UI
 
-signal state_changed         # UI should refresh
-signal run_started           # switch to run view
-signal run_ended(victory: bool, relic_choices: Array)  # run is over
+signal state_changed
+signal run_started
+signal run_ended(victory: bool, relic_choices: Array)
 signal prestige_happened(new_level: int)
-signal relic_chosen          # after choosing relic, finish prestige
+signal game_complete(ascension: int, relics_collected: Array)
+
+# ── Meta progress (survives full reset) ───────────────────────────────────────
+var ascension_count: int = 0           # completed full runs (Miner→Alch→Mage)
 
 # ── Idle state ────────────────────────────────────────────────────────────────
 var prestige_level: int = 0            # 0=Miner, 1=Alchemist, 2=Mage
 var resources: Array[float] = [0.0, 0.0, 0.0]
 var building_counts: Array[int] = [0, 0, 0]
 var upgrades_bought: Array[bool] = [false, false, false]
-var relics_owned: Array = []           # list of relic id strings
-var run_available: bool = false        # prestige goal reached
+var relics_owned: Array = []           # list of relic id strings collected this run
+var run_available: bool = false
 var prev_r2_amount: float = 0.0       # for "Ancient Knowledge" relic
 
 # ── Run state ─────────────────────────────────────────────────────────────────
@@ -68,8 +71,11 @@ func _building_mult(building_index: int) -> float:
 			mult *= u["multiplier"]
 	return mult
 
+func ascension_production_bonus() -> float:
+	return ascension_count * 0.10  # +10% per completed run
+
 func _recalculate_multipliers() -> void:
-	_production_mult = 1.0
+	_production_mult = 1.0 + ascension_production_bonus()
 	_cost_reduction = 0.0
 	_click_mult = 1.0
 	_offline_mult = 1.0
@@ -294,17 +300,17 @@ func choose_relic(relic_id: String) -> void:
 	_do_prestige()
 
 func _do_prestige() -> void:
-	var old_level = prestige_level
 	prestige_level += 1
+
+	if prestige_level >= 3:
+		# Full run complete — show ascension screen, don't reset yet
+		game_complete.emit(ascension_count + 1, relics_owned.duplicate())
+		return
 
 	# "Ancient Knowledge" relic: start with 10% of previous R2
 	var start_bonus = 0.0
 	if "ancient_knowledge" in relics_owned:
 		start_bonus = prev_r2_amount * 0.1
-
-	if prestige_level >= 3:
-		# Game complete — reset to 0 but keep relics
-		prestige_level = 0
 
 	resources = [start_bonus, 0.0, 0.0]
 	building_counts = [0, 0, 0]
@@ -313,7 +319,20 @@ func _do_prestige() -> void:
 	SaveManager.save_game()
 	prestige_happened.emit(prestige_level)
 	state_changed.emit()
-	relic_chosen.emit()
+
+# Called when player clicks "Ascend" on the game complete screen
+func do_ascension() -> void:
+	ascension_count += 1
+	prestige_level = 0
+	resources = [0.0, 0.0, 0.0]
+	building_counts = [0, 0, 0]
+	upgrades_bought = [false, false, false]
+	relics_owned = []
+	run_available = false
+	_recalculate_multipliers()
+	SaveManager.save_game()
+	prestige_happened.emit(0)
+	state_changed.emit()
 
 # ── Offline progress ──────────────────────────────────────────────────────────
 func apply_offline_progress(seconds: float) -> void:
@@ -330,6 +349,7 @@ func apply_offline_progress(seconds: float) -> void:
 # ── Serialization helpers (called by SaveManager) ────────────────────────────
 func to_dict() -> Dictionary:
 	return {
+		"ascension_count": ascension_count,
 		"prestige_level": prestige_level,
 		"resources": resources,
 		"building_counts": building_counts,
@@ -339,6 +359,7 @@ func to_dict() -> Dictionary:
 	}
 
 func from_dict(d: Dictionary) -> void:
+	ascension_count  = d.get("ascension_count", 0)
 	prestige_level   = d.get("prestige_level", 0)
 	var r = d.get("resources", [0.0, 0.0, 0.0])
 	resources        = [float(r[0]), float(r[1]), float(r[2])]
@@ -349,7 +370,6 @@ func from_dict(d: Dictionary) -> void:
 	relics_owned     = d.get("relics_owned", [])
 	_recalculate_multipliers()
 	_check_prestige_goal()
-	# Offline progress
 	var ts = d.get("timestamp", 0)
 	if ts > 0:
 		var elapsed = Time.get_unix_time_from_system() - ts
