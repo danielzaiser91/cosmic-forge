@@ -553,7 +553,6 @@ func _refresh_idle() -> void:
 		else:
 			_lbl_per_sec[i].text = ""
 
-	var asc = GameState.ascension_count
 	var unlocked_b = GameData.unlocked_building_count(lvl, asc)
 	var unlocked_u = GameData.unlocked_upgrade_count(lvl, asc)
 
