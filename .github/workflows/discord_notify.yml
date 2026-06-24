@@ -41,30 +41,20 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build Discord embed payload
+      - name: Build Discord plain text payload
         run: |
-          CHANGES_VALUE=$(jq -r '[.changes[] | "• " + .] | join("\n")' discord/version.json)
-          jq -n \
-            --argjson src "$(cat discord/version.json)" \
-            --arg changes "$CHANGES_VALUE" \
-            --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{
-              content: "@everyone",
-              allowed_mentions: { parse: ["everyone"] },
-              embeds: [{
-                title: ("🚀 Cosmic Forge v" + $src.version + " — " + $src.title),
-                url: "https://danielzaiser91.github.io/cosmic-forge/",
-                description: $src.description,
-                color: $src.color,
-                fields: [
-                  { name: "📝 Änderungen", value: $changes,  inline: false },
-                  { name: "🎮 Jetzt spielen", value: "[Im Browser öffnen](https://danielzaiser91.github.io/cosmic-forge/)", inline: true }
-                ],
-                footer: { text: "Cosmic Forge • Auto-deployed via GitHub Actions" },
-                timestamp: $ts
-              }]
-            }' > /tmp/payload.json
-          echo "Payload:"
+          CHANGES=$(jq -r '[.changes[] | "- " + .] | join("\n")' discord/version.json)
+          VERSION=$(jq -r '.version' discord/version.json)
+          TITLE=$(jq -r '.title' discord/version.json)
+          DESC=$(jq -r '.description' discord/version.json)
+          H1="# 🚀 Cosmic Forge v${VERSION} — ${TITLE}"
+          H2="### 📝 Änderungen"
+          LINK="🎮 **[Jetzt spielen](https://danielzaiser91.github.io/cosmic-forge/)**"
+          printf '@everyone\n\n%s\n\n%s\n\n%s\n%s\n\n%s\n' \
+            "$H1" "$DESC" "$H2" "$CHANGES" "$LINK" > /tmp/text.txt
+          jq -n --rawfile content /tmp/text.txt \
+            '{"content":$content,"allowed_mentions":{"parse":["everyone"]}}' \
+            > /tmp/payload.json
           cat /tmp/payload.json
 
       - name: POST new Discord message
