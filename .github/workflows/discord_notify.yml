@@ -1,0 +1,104 @@
+name: Discord Deploy Notification
+
+on:
+  workflow_run:
+    workflows: ["Export & Deploy to GitHub Pages"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  notify:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Always check out the latest main so message_ids.json is up to date
+          ref: main
+
+      - name: Wait 2 minutes for Pages propagation
+        run: sleep 120
+
+      - name: Read version
+        id: ver
+        run: |
+          VERSION=$(jq -r '.version' discord/version.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check for existing Discord message ID
+        id: msg
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          if jq -e --arg v "$V" 'has($v)' discord/message_ids.json > /dev/null 2>&1; then
+            ID=$(jq -r --arg v "$V" '.[$v]' discord/message_ids.json)
+            echo "exists=true"  >> $GITHUB_OUTPUT
+            echo "id=$ID"       >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Discord embed payload
+        run: |
+          CHANGES_VALUE=$(jq -r '[.changes[] | "• " + .] | join("\n")' discord/version.json)
+          jq -n \
+            --argjson src "$(cat discord/version.json)" \
+            --arg changes "$CHANGES_VALUE" \
+            --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{
+              embeds: [{
+                title: ("🚀 Cosmic Forge v" + $src.version + " — " + $src.title),
+                url: "https://danielzaiser91.github.io/cosmic-forge/",
+                description: $src.description,
+                color: $src.color,
+                fields: [
+                  { name: "📝 Änderungen", value: $changes,  inline: false },
+                  { name: "🎮 Jetzt spielen", value: "[Im Browser öffnen](https://danielzaiser91.github.io/cosmic-forge/)", inline: true }
+                ],
+                footer: { text: "Cosmic Forge • Auto-deployed via GitHub Actions" },
+                timestamp: $ts
+              }]
+            }' > /tmp/payload.json
+          echo "Payload:"
+          cat /tmp/payload.json
+
+      - name: POST new Discord message
+        if: steps.msg.outputs.exists == 'false'
+        id: post
+        run: |
+          RESPONSE=$(curl -s -X POST \
+            "${{ secrets.DISCORD_WEBHOOK_URL }}?wait=true" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/payload.json)
+          echo "Response: $RESPONSE"
+          MSG_ID=$(echo "$RESPONSE" | jq -r '.id // empty')
+          if [ -z "$MSG_ID" ]; then
+            echo "ERROR: Could not extract message ID from response"
+            exit 1
+          fi
+          echo "msg_id=$MSG_ID" >> $GITHUB_OUTPUT
+
+      - name: PATCH existing Discord message
+        if: steps.msg.outputs.exists == 'true'
+        run: |
+          curl -s -X PATCH \
+            "${{ secrets.DISCORD_WEBHOOK_URL }}/messages/${{ steps.msg.outputs.id }}" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/payload.json
+
+      - name: Save new message ID to repo
+        if: steps.msg.outputs.exists == 'false'
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          ID="${{ steps.post.outputs.msg_id }}"
+          jq --arg v "$V" --arg id "$ID" '.[$v] = $id' discord/message_ids.json \
+            > /tmp/new_ids.json
+          mv /tmp/new_ids.json discord/message_ids.json
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "github-actions[bot]"
+          git add discord/message_ids.json
+          git commit -m "chore: save Discord message ID for v$V [skip ci]"
+          git push

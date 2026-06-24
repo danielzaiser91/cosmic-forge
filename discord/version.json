@@ -1,0 +1,12 @@
+{
+  "version": "1.3.0",
+  "title": "Ascension Milestones",
+  "description": "Das Spiel hat jetzt ein vollständiges Milestone-System — bei Ascension 2, 5, 10 und 20 werden neue Gebäude, Upgrades und Mechaniken freigeschaltet.",
+  "color": 4886745,
+  "changes": [
+    "Milestone-System: Asc 2 = 4. Gebäude, Asc 5 = 4. Upgrade + Gegner-Spike, Asc 10 = 5. Gebäude, Asc 20 = 5. Upgrade + Ziele -25%",
+    "Milestone-Fortschrittsleiste auf dem Ascension-Screen",
+    "Unlock-Notification beim Erreichen eines Milestones",
+    "Ende des neuen Contents klar kommuniziert nach Asc 20"
+  ]
+}
