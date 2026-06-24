@@ -20,8 +20,8 @@ jobs:
           # Always check out the latest main so message_ids.json is up to date
           ref: main
 
-      - name: Wait 2 minutes for Pages propagation
-        run: sleep 120
+      - name: Wait for Pages CDN
+        run: sleep 5
 
       - name: Read version
         id: ver
