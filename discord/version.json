@@ -7,6 +7,7 @@
     "Milestone-System: Asc 2 = 4. Gebäude, Asc 5 = 4. Upgrade + Gegner-Spike, Asc 10 = 5. Gebäude, Asc 20 = 5. Upgrade + Ziele -25%",
     "Milestone-Fortschrittsleiste auf dem Ascension-Screen",
     "Unlock-Notification beim Erreichen eines Milestones",
-    "Ende des neuen Contents klar kommuniziert nach Asc 20"
+    "Ende des neuen Contents klar kommuniziert nach Asc 20",
+    "Bugfix: Parse-Fehler auf der Webversion behoben (grauer Bildschirm)"
   ]
 }
