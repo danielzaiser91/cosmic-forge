@@ -141,25 +141,22 @@ func start_prestige_run() -> void:
 	player_defense_this_round = 0
 	combat_log.clear()
 
-	# Stats scale with accumulated resources — farm more for a stronger run
+	# Sqrt scaling = strong early gains, diminishing returns at high resource counts
 	var r2 = resources[2]
 	var r1 = resources[1]
-	var total_buildings = building_counts[0] + building_counts[1] + building_counts[2]
 
-	# Attack: base 12 + 1 per 60 R2 + 1 per 2 buildings
-	player_attack = 12 + int(r2 / 60.0) + int(total_buildings / 2)
-	player_attack = min(player_attack, 60)  # cap to avoid trivial runs
+	# ATK: base 12, +1 per sqrt(R2/50), capped at +18 (max ATK 30)
+	var atk_bonus = int(sqrt(r2 / 50.0))
+	player_attack = 12 + min(atk_bonus, 18)
 
-	# Max HP: base 100 + 5 per 30 R1 + 3 per building
-	player_max_hp = 100 + int(r1 / 30.0) * 5 + total_buildings * 3
-	player_max_hp = min(player_max_hp, 300)
+	# MaxHP: base 100, +5 per sqrt(R1/10), capped at +150 (max HP 250)
+	var hp_bonus = int(sqrt(r1 / 10.0)) * 5
+	player_max_hp = 100 + min(hp_bonus, 150)
 
 	player_hp = player_max_hp
 
-	var atk_bonus = player_attack - 12
-	var hp_bonus = player_max_hp - 100
-	combat_log.append("Run started! ATK: %d (+%d from resources)  HP: %d (+%d from resources)" % [
-		player_attack, atk_bonus, player_max_hp, hp_bonus])
+	combat_log.append("Run started — ATK: %d (+%d)   HP: %d (+%d)" % [
+		player_attack, player_attack - 12, player_max_hp, player_max_hp - 100])
 	_load_enemy(run_room)
 	run_started.emit()
 
