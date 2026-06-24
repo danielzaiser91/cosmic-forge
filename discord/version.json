@@ -6,8 +6,6 @@
     "Sound-Effekte für alle Aktionen (Klick, Kauf, Kampf, Sieg, Niederlage, Prestige, Ascension)",
     "Tutorial-Popup beim ersten Start erklärt den Game Loop",
     "Cosmic Score nach Ascension 20 — Highscore-Tracking im Endgame",
-    "Save-Migration: neue Saves sind versioniert und zukunftssicher",
-    "Deploy feuert nur noch bei echten Spieländerungen, nicht bei Infra-Commits",
-    "Discord-Notify kann jetzt manuell via GitHub Actions ausgelöst werden"
+    "Save-Dateien sind jetzt versioniert und zukunftssicher"
   ]
 }
