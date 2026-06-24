@@ -1,0 +1,708 @@
+extends Control
+# Main.gd — builds all UI programmatically, connects to GameState signals
+
+# ── Colors ────────────────────────────────────────────────────────────────────
+const C_BG       = Color(0.10, 0.10, 0.18)
+const C_PANEL    = Color(0.09, 0.13, 0.25)
+const C_BORDER   = Color(0.06, 0.20, 0.38)
+const C_TEXT     = Color(0.88, 0.88, 0.92)
+const C_DIM      = Color(0.55, 0.55, 0.62)
+const C_GOLD     = Color(0.96, 0.65, 0.14)
+const C_GREEN    = Color(0.30, 0.76, 0.45)
+const C_RED      = Color(0.96, 0.26, 0.26)
+const C_BLUE     = Color(0.25, 0.60, 0.96)
+const C_PURPLE   = Color(0.70, 0.35, 0.96)
+const C_HEADER   = Color(0.13, 0.17, 0.32)
+
+# ── Node references ───────────────────────────────────────────────────────────
+var _idle_panel: Control
+var _run_panel: Control
+var _relic_panel: Control
+var _offline_panel: Control
+
+# Idle UI refs
+var _lbl_title: Label
+var _lbl_level: Label
+var _lbl_resources: Array[Label] = []
+var _lbl_per_sec: Array[Label] = []
+var _btn_click: Button
+var _building_rows: Array = []   # Array of {lbl_name, lbl_count, lbl_cost, btn}
+var _upgrade_rows: Array = []    # Array of {lbl_name, lbl_desc, btn}
+var _progress_bar: ProgressBar
+var _lbl_progress: Label
+var _relic_chips: HBoxContainer
+var _btn_prestige: Button
+
+# Run UI refs
+var _lbl_run_title: Label
+var _lbl_room: Label
+var _lbl_player_hp: Label
+var _lbl_enemy_name: Label
+var _lbl_enemy_hp: Label
+var _lbl_telegraph: Label
+var _btn_attack: Button
+var _btn_shield: Button
+var _btn_special: Button
+var _log_label: Label
+
+# Relic choice refs
+var _relic_choice_btns: Array[Button] = []
+
+# Offline panel refs
+var _lbl_offline_time: Label
+var _btn_offline_ok: Button
+
+# ── Setup ─────────────────────────────────────────────────────────────────────
+func _ready() -> void:
+	_set_bg()
+	_build_idle_panel()
+	_build_run_panel()
+	_build_relic_panel()
+	_build_offline_panel()
+	_connect_signals()
+	_refresh_ui()
+
+func _set_bg() -> void:
+	var style = StyleBoxFlat.new()
+	style.bg_color = C_BG
+	add_theme_stylebox_override("panel", style)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+# ── Build: Idle panel ─────────────────────────────────────────────────────────
+func _build_idle_panel() -> void:
+	_idle_panel = VBoxContainer.new()
+	_idle_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(_idle_panel)
+
+	# Header
+	var header = _make_panel(C_HEADER)
+	header.custom_minimum_size = Vector2(0, 56)
+	_idle_panel.add_child(header)
+	var hrow = HBoxContainer.new()
+	hrow.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hrow.add_theme_constant_override("separation", 12)
+	header.add_child(hrow)
+
+	_lbl_title = _make_label("COSMIC FORGE", 22, C_GOLD, true)
+	hrow.add_child(_lbl_title)
+	var spacer = Control.new(); spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hrow.add_child(spacer)
+	_lbl_level = _make_label("Level 0 — The Miner", 14, C_BLUE)
+	hrow.add_child(_lbl_level)
+	var spacer2 = Control.new(); spacer2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hrow.add_child(spacer2)
+
+	# Prestige run button
+	_btn_prestige = _make_button("⚔  Start Prestige Run", C_PURPLE)
+	_btn_prestige.custom_minimum_size = Vector2(220, 0)
+	_btn_prestige.pressed.connect(_on_prestige_pressed)
+	hrow.add_child(_btn_prestige)
+
+	# Main 3-column row
+	var columns = HBoxContainer.new()
+	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	columns.add_theme_constant_override("separation", 0)
+	_idle_panel.add_child(columns)
+
+	_build_resource_column(columns)
+	_add_vsep(columns)
+	_build_buildings_column(columns)
+	_add_vsep(columns)
+	_build_upgrades_column(columns)
+
+	# Progress + relics footer
+	var footer = _make_panel(C_HEADER)
+	footer.custom_minimum_size = Vector2(0, 80)
+	_idle_panel.add_child(footer)
+	var fvbox = VBoxContainer.new()
+	fvbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fvbox.add_theme_constant_override("separation", 4)
+	footer.add_child(fvbox)
+
+	var prow = HBoxContainer.new()
+	prow.add_theme_constant_override("separation", 8)
+	fvbox.add_child(prow)
+	_lbl_progress = _make_label("Progress: 0 / 1000 Gold", 13, C_TEXT)
+	prow.add_child(_lbl_progress)
+	_progress_bar = ProgressBar.new()
+	_progress_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_progress_bar.custom_minimum_size = Vector2(0, 18)
+	_progress_bar.value = 0; _progress_bar.max_value = 100
+	_progress_bar.show_percentage = false
+	prow.add_child(_progress_bar)
+
+	var rrow = HBoxContainer.new()
+	rrow.add_theme_constant_override("separation", 8)
+	fvbox.add_child(rrow)
+	rrow.add_child(_make_label("Relics:", 12, C_DIM))
+	_relic_chips = HBoxContainer.new()
+	_relic_chips.add_theme_constant_override("separation", 6)
+	rrow.add_child(_relic_chips)
+
+func _build_resource_column(parent: Control) -> void:
+	var col = _make_panel(C_PANEL)
+	col.custom_minimum_size = Vector2(220, 0)
+	parent.add_child(col)
+	var vbox = VBoxContainer.new()
+	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vbox.add_theme_constant_override("separation", 6)
+	col.add_child(vbox)
+
+	vbox.add_child(_make_label("RESOURCES", 13, C_GOLD, true))
+	vbox.add_child(_make_hsep())
+
+	# Click button
+	_btn_click = _make_button("Mine Stone", C_BLUE)
+	_btn_click.custom_minimum_size = Vector2(0, 40)
+	_btn_click.pressed.connect(_on_click_pressed)
+	vbox.add_child(_btn_click)
+
+	vbox.add_child(_make_hsep())
+
+	# Resource rows
+	_lbl_resources.clear(); _lbl_per_sec.clear()
+	for i in 3:
+		var row = VBoxContainer.new()
+		row.add_theme_constant_override("separation", 1)
+		vbox.add_child(row)
+		var lbl = _make_label("— 0", 16, C_TEXT, true)
+		_lbl_resources.append(lbl)
+		row.add_child(lbl)
+		var lbl_ps = _make_label("  0.0 /s", 11, C_DIM)
+		_lbl_per_sec.append(lbl_ps)
+		row.add_child(lbl_ps)
+
+	var sp = Control.new(); sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(sp)
+
+func _build_buildings_column(parent: Control) -> void:
+	var col = _make_panel(C_PANEL)
+	col.custom_minimum_size = Vector2(380, 0)
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parent.add_child(col)
+	var vbox = VBoxContainer.new()
+	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vbox.add_theme_constant_override("separation", 8)
+	col.add_child(vbox)
+
+	vbox.add_child(_make_label("BUILDINGS", 13, C_GOLD, true))
+	vbox.add_child(_make_hsep())
+
+	_building_rows.clear()
+	for i in 3:
+		var row = _build_building_row(i)
+		vbox.add_child(row["container"])
+		_building_rows.append(row)
+
+	var sp = Control.new(); sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(sp)
+
+func _build_building_row(index: int) -> Dictionary:
+	var container = PanelContainer.new()
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(C_BORDER.r, C_BORDER.g, C_BORDER.b, 0.2)
+	style.set_corner_radius_all(4)
+	container.add_theme_stylebox_override("panel", style)
+
+	var hbox = HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 8)
+	container.add_child(hbox)
+
+	var info = VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(info)
+
+	var lbl_name = _make_label("Building", 14, C_TEXT, true)
+	info.add_child(lbl_name)
+	var lbl_cost = _make_label("Cost: ?", 11, C_DIM)
+	info.add_child(lbl_cost)
+
+	var right = VBoxContainer.new()
+	right.custom_minimum_size = Vector2(90, 0)
+	hbox.add_child(right)
+
+	var lbl_count = _make_label("x0", 13, C_BLUE, true)
+	lbl_count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	right.add_child(lbl_count)
+
+	var btn = _make_button("Buy", C_GREEN)
+	btn.custom_minimum_size = Vector2(80, 30)
+	btn.pressed.connect(func(): _on_buy_building(index))
+	right.add_child(btn)
+
+	return {"container": container, "lbl_name": lbl_name, "lbl_count": lbl_count, "lbl_cost": lbl_cost, "btn": btn}
+
+func _build_upgrades_column(parent: Control) -> void:
+	var col = _make_panel(C_PANEL)
+	col.custom_minimum_size = Vector2(280, 0)
+	parent.add_child(col)
+	var vbox = VBoxContainer.new()
+	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vbox.add_theme_constant_override("separation", 8)
+	col.add_child(vbox)
+
+	vbox.add_child(_make_label("UPGRADES", 13, C_GOLD, true))
+	vbox.add_child(_make_hsep())
+
+	_upgrade_rows.clear()
+	for i in 3:
+		var row = _build_upgrade_row(i)
+		vbox.add_child(row["container"])
+		_upgrade_rows.append(row)
+
+	var sp = Control.new(); sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(sp)
+
+func _build_upgrade_row(index: int) -> Dictionary:
+	var container = PanelContainer.new()
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(C_BORDER.r, C_BORDER.g, C_BORDER.b, 0.2)
+	style.set_corner_radius_all(4)
+	container.add_theme_stylebox_override("panel", style)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 2)
+	container.add_child(vbox)
+
+	var lbl_name = _make_label("Upgrade", 13, C_TEXT, true)
+	vbox.add_child(lbl_name)
+	var lbl_desc = _make_label("description", 11, C_DIM)
+	lbl_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(lbl_desc)
+	var btn = _make_button("Buy", C_PURPLE)
+	btn.custom_minimum_size = Vector2(0, 28)
+	btn.pressed.connect(func(): _on_buy_upgrade(index))
+	vbox.add_child(btn)
+
+	return {"container": container, "lbl_name": lbl_name, "lbl_desc": lbl_desc, "btn": btn}
+
+# ── Build: Run panel ──────────────────────────────────────────────────────────
+func _build_run_panel() -> void:
+	_run_panel = PanelContainer.new()
+	_run_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_run_panel.visible = false
+	var bg = StyleBoxFlat.new()
+	bg.bg_color = Color(0.05, 0.05, 0.10, 0.95)
+	_run_panel.add_theme_stylebox_override("panel", bg)
+	add_child(_run_panel)
+
+	var vbox = VBoxContainer.new()
+	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vbox.add_theme_constant_override("separation", 12)
+	_run_panel.add_child(vbox)
+
+	# Header
+	var hdr = HBoxContainer.new()
+	hdr.custom_minimum_size = Vector2(0, 50)
+	vbox.add_child(hdr)
+	_lbl_run_title = _make_label("THE MINER'S RUN", 22, C_GOLD, true)
+	hdr.add_child(_lbl_run_title)
+	var sp = Control.new(); sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hdr.add_child(sp)
+	_lbl_room = _make_label("Room 1 / 5", 14, C_BLUE)
+	hdr.add_child(_lbl_room)
+
+	# HP row
+	var hp_row = HBoxContainer.new()
+	hp_row.add_theme_constant_override("separation", 20)
+	vbox.add_child(hp_row)
+	_lbl_player_hp = _make_label("HP: 100 / 100", 16, C_GREEN, true)
+	hp_row.add_child(_lbl_player_hp)
+	var sp2 = Control.new(); sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hp_row.add_child(sp2)
+	_lbl_enemy_hp = _make_label("Enemy HP: 0 / 0", 16, C_RED)
+	hp_row.add_child(_lbl_enemy_hp)
+
+	vbox.add_child(_make_hsep())
+
+	# Enemy area
+	var enemy_panel = _make_panel(C_PANEL)
+	enemy_panel.custom_minimum_size = Vector2(0, 100)
+	vbox.add_child(enemy_panel)
+	var ev = VBoxContainer.new()
+	ev.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ev.add_theme_constant_override("separation", 6)
+	enemy_panel.add_child(ev)
+	_lbl_enemy_name = _make_label("Enemy", 18, C_RED, true)
+	_lbl_enemy_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ev.add_child(_lbl_enemy_name)
+	_lbl_telegraph = _make_label("...", 13, C_GOLD)
+	_lbl_telegraph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_lbl_telegraph.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ev.add_child(_lbl_telegraph)
+
+	vbox.add_child(_make_hsep())
+
+	# Action buttons
+	var action_row = HBoxContainer.new()
+	action_row.add_theme_constant_override("separation", 16)
+	action_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(action_row)
+
+	_btn_attack = _make_button("⚔  ATTACK\n(12 dmg)", C_RED)
+	_btn_attack.custom_minimum_size = Vector2(160, 70)
+	_btn_attack.pressed.connect(func(): _on_run_action("attack"))
+	action_row.add_child(_btn_attack)
+
+	_btn_shield = _make_button("🛡  SHIELD\n(+15 def)", C_BLUE)
+	_btn_shield.custom_minimum_size = Vector2(160, 70)
+	_btn_shield.pressed.connect(func(): _on_run_action("shield"))
+	action_row.add_child(_btn_shield)
+
+	_btn_special = _make_button("✨  SHATTER\n(2x dmg)", C_PURPLE)
+	_btn_special.custom_minimum_size = Vector2(160, 70)
+	_btn_special.pressed.connect(func(): _on_run_action("special"))
+	action_row.add_child(_btn_special)
+
+	vbox.add_child(_make_hsep())
+
+	# Combat log
+	var scroll = ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.custom_minimum_size = Vector2(0, 120)
+	vbox.add_child(scroll)
+	_log_label = Label.new()
+	_log_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_log_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_log_label.add_theme_font_size_override("font_size", 12)
+	_log_label.add_theme_color_override("font_color", C_TEXT)
+	scroll.add_child(_log_label)
+
+# ── Build: Relic choice panel ─────────────────────────────────────────────────
+func _build_relic_panel() -> void:
+	_relic_panel = PanelContainer.new()
+	_relic_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_relic_panel.custom_minimum_size = Vector2(620, 340)
+	_relic_panel.visible = false
+	var bg = StyleBoxFlat.new()
+	bg.bg_color = Color(0.07, 0.07, 0.15)
+	bg.border_color = C_GOLD
+	bg.set_border_width_all(2)
+	bg.set_corner_radius_all(8)
+	_relic_panel.add_theme_stylebox_override("panel", bg)
+	add_child(_relic_panel)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+	_relic_panel.add_child(vbox)
+
+	var ttl = _make_label("⚔  VICTORY  ⚔", 20, C_GOLD, true)
+	ttl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(ttl)
+	var sub = _make_label("Choose a Relic — it will persist through all future runs.", 12, C_DIM)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(sub)
+
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(row)
+
+	_relic_choice_btns.clear()
+	for i in 3:
+		var btn = Button.new()
+		btn.custom_minimum_size = Vector2(160, 130)
+		btn.text = ""
+		btn.pressed.connect(func(): _on_relic_chosen(i))
+		_style_button(btn, C_BORDER)
+		row.add_child(btn)
+		_relic_choice_btns.append(btn)
+
+	var skip_btn = _make_button("Skip (no relic)", C_DIM)
+	skip_btn.pressed.connect(func(): _on_relic_chosen(-1))
+	skip_btn.custom_minimum_size = Vector2(160, 32)
+	vbox.add_child(skip_btn)
+
+# ── Build: Offline progress panel ────────────────────────────────────────────
+func _build_offline_panel() -> void:
+	_offline_panel = PanelContainer.new()
+	_offline_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_offline_panel.custom_minimum_size = Vector2(400, 200)
+	_offline_panel.visible = false
+	var bg = StyleBoxFlat.new()
+	bg.bg_color = Color(0.07, 0.07, 0.15)
+	bg.border_color = C_BLUE
+	bg.set_border_width_all(2)
+	bg.set_corner_radius_all(8)
+	_offline_panel.add_theme_stylebox_override("panel", bg)
+	add_child(_offline_panel)
+
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 16)
+	_offline_panel.add_child(vbox)
+
+	vbox.add_child(_make_label("Welcome Back!", 18, C_BLUE, true))
+	_lbl_offline_time = _make_label("You were away for 0 minutes.", 13, C_TEXT)
+	_lbl_offline_time.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(_lbl_offline_time)
+	_btn_offline_ok = _make_button("Collect & Continue", C_GREEN)
+	_btn_offline_ok.pressed.connect(_on_offline_ok)
+	vbox.add_child(_btn_offline_ok)
+
+# ── Signal connections ────────────────────────────────────────────────────────
+func _connect_signals() -> void:
+	GameState.state_changed.connect(_refresh_ui)
+	GameState.run_started.connect(_on_run_started)
+	GameState.run_ended.connect(_on_run_ended)
+	GameState.prestige_happened.connect(_on_prestige_happened)
+	GameState.relic_chosen.connect(_refresh_ui)
+
+# ── UI Refresh ────────────────────────────────────────────────────────────────
+func _refresh_ui() -> void:
+	_refresh_idle()
+
+func _refresh_idle() -> void:
+	if not is_instance_valid(_lbl_level):
+		return
+	var lvl = GameState.prestige_level
+	var res_data = GameData.RESOURCES[lvl]
+	var bld_data = GameData.BUILDINGS[lvl]
+	var upg_data = GameData.UPGRADES[lvl]
+
+	_lbl_level.text = "Level %d — %s" % [lvl, GameData.LEVEL_NAMES[lvl]]
+	_btn_click.text = GameData.LEVEL_CLICK_LABELS[lvl]
+
+	# Resources
+	for i in 3:
+		var r = GameData.RESOURCES[lvl][i]
+		_lbl_resources[i].text = "%s %s  %s" % [r["icon"], r["name"], GameData.format_number(GameState.resources[i])]
+		var ps = GameState.production_per_sec(i)
+		if ps > 0.001:
+			_lbl_per_sec[i].text = "   %.2f /s" % ps
+		else:
+			_lbl_per_sec[i].text = ""
+
+	# Buildings
+	for i in 3:
+		var row = _building_rows[i]
+		var b = bld_data[i]
+		var produces_res = GameData.RESOURCES[lvl][b["produces"]]
+		row["lbl_name"].text = "%s  (+%.2f %s/s each)" % [b["name"], b["base_production"], produces_res["name"]]
+		row["lbl_count"].text = "x%d" % GameState.building_counts[i]
+		var cost = GameState.building_cost(i)
+		var cost_res = GameData.RESOURCES[lvl][b["cost_resource"]]
+		row["lbl_cost"].text = "Cost: %s %s" % [GameData.format_number(cost), cost_res["name"]]
+		var can_afford = GameState.resources[b["cost_resource"]] >= cost
+		row["btn"].disabled = not can_afford
+		row["btn"].modulate = C_TEXT if can_afford else C_DIM
+
+	# Upgrades
+	for i in 3:
+		var row = _upgrade_rows[i]
+		var u = upg_data[i]
+		row["lbl_name"].text = u["name"]
+		var cost_res_name = GameData.RESOURCES[lvl][u["cost_resource"]]["name"]
+		row["lbl_desc"].text = "%s\nCost: %s %s" % [u["desc"], GameData.format_number(u["cost"]), cost_res_name]
+		if GameState.upgrades_bought[i]:
+			row["btn"].text = "✓ Owned"
+			row["btn"].disabled = true
+			row["btn"].modulate = C_DIM
+		else:
+			var can_afford = GameState.resources[u["cost_resource"]] >= u["cost"]
+			row["btn"].text = "Buy"
+			row["btn"].disabled = not can_afford
+			row["btn"].modulate = C_TEXT if can_afford else C_DIM
+
+	# Progress bar
+	var goal = GameData.PRESTIGE_GOALS[lvl]
+	var current_r2 = GameState.resources[2]
+	var pct = clampf(current_r2 / goal * 100.0, 0.0, 100.0)
+	_progress_bar.value = pct
+	var r2_name = GameData.RESOURCES[lvl][2]["name"]
+	_lbl_progress.text = "Goal: %s / %s %s  (%.0f%%)" % [
+		GameData.format_number(current_r2), GameData.format_number(goal), r2_name, pct]
+
+	# Prestige button
+	_btn_prestige.disabled = not GameState.run_available
+	if GameState.run_available:
+		_btn_prestige.text = "⚔  START PRESTIGE RUN"
+		_btn_prestige.modulate = Color.WHITE
+	else:
+		_btn_prestige.text = "⚔  Prestige Run (locked)"
+		_btn_prestige.modulate = C_DIM
+
+	# Relics
+	for child in _relic_chips.get_children():
+		_relic_chips.remove_child(child)
+		child.queue_free()
+	for rid in GameState.relics_owned:
+		for r in GameData.RELICS:
+			if r["id"] == rid:
+				var chip = _make_label("%s %s" % [r["icon"], r["name"]], 11, C_GOLD)
+				var chip_panel = PanelContainer.new()
+				var sty = StyleBoxFlat.new()
+				sty.bg_color = Color(C_GOLD.r, C_GOLD.g, C_GOLD.b, 0.15)
+				sty.border_color = C_GOLD
+				sty.set_border_width_all(1)
+				sty.set_corner_radius_all(4)
+				chip_panel.add_theme_stylebox_override("panel", sty)
+				chip_panel.add_child(chip)
+				_relic_chips.add_child(chip_panel)
+				break
+
+func _refresh_run() -> void:
+	var lvl = GameState.prestige_level
+	var run_names = ["The Miner's Run", "The Alchemist's Run", "The Mage's Run"]
+	_lbl_run_title.text = run_names[lvl]
+	var room = GameState.run_room
+	var is_boss = room >= 4
+	_lbl_room.text = "Room %d / 5%s" % [room + 1, "  [BOSS]" if is_boss else ""]
+	_lbl_player_hp.text = "❤ HP: %d / %d" % [GameState.player_hp, GameState.player_max_hp]
+	if GameState.player_hp <= 30:
+		_lbl_player_hp.add_theme_color_override("font_color", C_RED)
+	else:
+		_lbl_player_hp.add_theme_color_override("font_color", C_GREEN)
+
+	if GameState.enemy_data.is_empty():
+		return
+	var edata = GameState.enemy_data
+	_lbl_enemy_name.text = "%s%s" % ["👑 " if is_boss else "", edata["name"]]
+	_lbl_enemy_hp.text = "Enemy HP: %d / %d" % [GameState.enemy_hp, edata["hp"]]
+	_lbl_telegraph.text = "▶ " + GameState.get_enemy_telegraph()
+
+	# Update action button labels
+	_btn_attack.text = "⚔  ATTACK\n(%d dmg)" % GameState.player_attack
+	_btn_shield.text = "🛡  SHIELD\n(+15 def)"
+	var special = GameData.PLAYER_SPECIALS[lvl]
+	_btn_special.text = "✨  %s\n(%s)" % [special["name"].to_upper(), special["desc"]]
+
+	# Update log
+	var log_lines = GameState.combat_log
+	var recent = log_lines.slice(max(0, log_lines.size() - 12))
+	_log_label.text = "\n".join(recent)
+
+# ── Event handlers ────────────────────────────────────────────────────────────
+func _on_click_pressed() -> void:
+	GameState.click_resource()
+
+func _on_buy_building(index: int) -> void:
+	GameState.buy_building(index)
+
+func _on_buy_upgrade(index: int) -> void:
+	GameState.buy_upgrade(index)
+
+func _on_prestige_pressed() -> void:
+	GameState.start_prestige_run()
+
+func _on_run_action(action: String) -> void:
+	GameState.player_action(action)
+	_refresh_run()
+
+func _on_run_started() -> void:
+	_idle_panel.visible = false
+	_run_panel.visible = true
+	_refresh_run()
+
+func _on_run_ended(victory: bool, relic_choices: Array) -> void:
+	if victory:
+		_show_relic_choices(relic_choices)
+	else:
+		_run_panel.visible = false
+		_idle_panel.visible = true
+		_show_defeat_message()
+
+func _show_defeat_message() -> void:
+	# Brief label overlay — reuse as notification
+	var lbl = _make_label("Defeated! The prestige run can be retried.", 14, C_RED, true)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	add_child(lbl)
+	await get_tree().create_timer(3.0).timeout
+	if is_instance_valid(lbl):
+		lbl.queue_free()
+
+func _show_relic_choices(choices: Array) -> void:
+	_run_panel.visible = false
+	_relic_panel.visible = true
+	for i in 3:
+		var btn = _relic_choice_btns[i]
+		if i < choices.size():
+			var r = choices[i]
+			btn.text = "%s\n%s\n\n%s" % [r["icon"], r["name"], r["desc"]]
+			btn.visible = true
+		else:
+			btn.visible = false
+
+func _on_relic_chosen(index: int) -> void:
+	_relic_panel.visible = false
+	var relic_id = ""
+	if index >= 0 and index < GameState.pending_relic_choices.size():
+		relic_id = GameState.pending_relic_choices[index]["id"]
+	GameState.choose_relic(relic_id)
+	_idle_panel.visible = true
+	_refresh_idle()
+
+func _on_prestige_happened(_new_level: int) -> void:
+	_refresh_idle()
+
+func _on_offline_ok() -> void:
+	_offline_panel.visible = false
+
+# ── UI Factories ──────────────────────────────────────────────────────────────
+func _make_label(text: String, size: int, color: Color, bold: bool = false) -> Label:
+	var l = Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	if bold:
+		pass  # Godot uses default font, bold handled by size/color contrast
+	return l
+
+func _make_button(text: String, color: Color) -> Button:
+	var btn = Button.new()
+	btn.text = text
+	_style_button(btn, color)
+	return btn
+
+func _style_button(btn: Button, color: Color) -> void:
+	var normal = StyleBoxFlat.new()
+	normal.bg_color = Color(color.r * 0.3, color.g * 0.3, color.b * 0.3)
+	normal.border_color = color
+	normal.set_border_width_all(1)
+	normal.set_corner_radius_all(4)
+	btn.add_theme_stylebox_override("normal", normal)
+
+	var hover = StyleBoxFlat.new()
+	hover.bg_color = Color(color.r * 0.5, color.g * 0.5, color.b * 0.5)
+	hover.border_color = color
+	hover.set_border_width_all(2)
+	hover.set_corner_radius_all(4)
+	btn.add_theme_stylebox_override("hover", hover)
+
+	var pressed_style = StyleBoxFlat.new()
+	pressed_style.bg_color = color
+	pressed_style.border_color = color
+	pressed_style.set_border_width_all(1)
+	pressed_style.set_corner_radius_all(4)
+	btn.add_theme_stylebox_override("pressed", pressed_style)
+
+	var disabled_style = StyleBoxFlat.new()
+	disabled_style.bg_color = Color(0.15, 0.15, 0.20)
+	disabled_style.border_color = Color(0.3, 0.3, 0.35)
+	disabled_style.set_border_width_all(1)
+	disabled_style.set_corner_radius_all(4)
+	btn.add_theme_stylebox_override("disabled", disabled_style)
+
+	btn.add_theme_color_override("font_color", C_TEXT)
+	btn.add_theme_color_override("font_hover_color", Color.WHITE)
+	btn.add_theme_color_override("font_disabled_color", C_DIM)
+	btn.add_theme_font_size_override("font_size", 13)
+
+func _make_panel(bg_color: Color) -> PanelContainer:
+	var p = PanelContainer.new()
+	var sty = StyleBoxFlat.new()
+	sty.bg_color = bg_color
+	sty.border_color = C_BORDER
+	sty.set_border_width_all(1)
+	p.add_theme_stylebox_override("panel", sty)
+	return p
+
+func _make_hsep() -> HSeparator:
+	var sep = HSeparator.new()
+	sep.add_theme_color_override("color", C_BORDER)
+	return sep
+
+func _add_vsep(parent: Control) -> void:
+	var sep = VSeparator.new()
+	sep.add_theme_color_override("color", C_BORDER)
+	parent.add_child(sep)

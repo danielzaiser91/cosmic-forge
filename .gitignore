@@ -1,0 +1,14 @@
+# Godot 4 — generated files
+.godot/
+*.import
+export.cfg
+export_presets.cfg
+
+# Mono/C# specifics
+.mono/
+data_*/
+mono_crash.*.json
+
+# OS
+.DS_Store
+Thumbs.db

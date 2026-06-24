@@ -1,0 +1,144 @@
+extends Node
+# GameData — all static definitions, no runtime state
+
+# ── Prestige level names ──────────────────────────────────────────────────────
+const LEVEL_NAMES = ["The Miner", "The Alchemist", "The Mage"]
+const LEVEL_THEMES = ["Depths of the Earth", "Arcane Laboratory", "Realm of Magic"]
+const LEVEL_CLICK_LABELS = ["Mine Stone", "Gather Herbs", "Channel Mana"]
+
+# ── Resources [level][index] ──────────────────────────────────────────────────
+# Each level has 3 resources: R0 (basic), R1 (mid), R2 (prestige currency)
+const RESOURCES: Array = [
+	[  # Level 0 — Miner
+		{"id": "stone",   "name": "Stone",   "icon": "🪨"},
+		{"id": "iron",    "name": "Iron",    "icon": "⚙"},
+		{"id": "gold",    "name": "Gold",    "icon": "🪙"},
+	],
+	[  # Level 1 — Alchemist
+		{"id": "herbs",    "name": "Herbs",    "icon": "🌿"},
+		{"id": "potions",  "name": "Potions",  "icon": "⚗"},
+		{"id": "essence",  "name": "Essence",  "icon": "✨"},
+	],
+	[  # Level 2 — Mage
+		{"id": "mana",     "name": "Mana",     "icon": "💧"},
+		{"id": "spells",   "name": "Spells",   "icon": "📜"},
+		{"id": "arcanum",  "name": "Arcanum",  "icon": "🔮"},
+	],
+]
+
+# ── Buildings [level][index] ──────────────────────────────────────────────────
+# produces: which resource index this building generates
+# base_production: units per second per building
+# base_cost: cost of first purchase
+# cost_resource: which resource index to spend
+const BUILDINGS: Array = [
+	[  # Level 0
+		{"name": "Quarry",    "produces": 0, "base_production": 1.0,  "base_cost": 10.0,  "cost_resource": 0},
+		{"name": "Forge",     "produces": 1, "base_production": 0.4,  "base_cost": 15.0,  "cost_resource": 0},
+		{"name": "Gold Mine", "produces": 2, "base_production": 0.15, "base_cost": 20.0,  "cost_resource": 1},
+	],
+	[  # Level 1
+		{"name": "Garden",     "produces": 0, "base_production": 1.0,  "base_cost": 10.0, "cost_resource": 0},
+		{"name": "Laboratory", "produces": 1, "base_production": 0.4,  "base_cost": 15.0, "cost_resource": 0},
+		{"name": "Distillery", "produces": 2, "base_production": 0.15, "base_cost": 20.0, "cost_resource": 1},
+	],
+	[  # Level 2
+		{"name": "Mana Font",     "produces": 0, "base_production": 1.0,  "base_cost": 10.0, "cost_resource": 0},
+		{"name": "Spellbook",     "produces": 1, "base_production": 0.4,  "base_cost": 15.0, "cost_resource": 0},
+		{"name": "Arcane Tower",  "produces": 2, "base_production": 0.15, "base_cost": 20.0, "cost_resource": 1},
+	],
+]
+
+# ── Upgrades [level][index] ───────────────────────────────────────────────────
+# type: "click" = boosts manual click, "building" = multiplies building[building_index]
+# cost_resource: which resource index to spend
+# cost: flat cost
+const UPGRADES: Array = [
+	[  # Level 0
+		{"name": "Sharp Pickaxe",   "desc": "Click gives x3 Stone",      "type": "click",    "multiplier": 3.0, "cost": 50.0,  "cost_resource": 0},
+		{"name": "Blast Furnace",   "desc": "Forge production x2",        "type": "building", "building_index": 1, "multiplier": 2.0, "cost": 30.0, "cost_resource": 1},
+		{"name": "Deep Veins",      "desc": "Gold Mine production x2",    "type": "building", "building_index": 2, "multiplier": 2.0, "cost": 50.0, "cost_resource": 2},
+	],
+	[  # Level 1
+		{"name": "Green Thumb",     "desc": "Click gives x3 Herbs",       "type": "click",    "multiplier": 3.0, "cost": 50.0,  "cost_resource": 0},
+		{"name": "Potent Brew",     "desc": "Laboratory production x2",   "type": "building", "building_index": 1, "multiplier": 2.0, "cost": 30.0, "cost_resource": 1},
+		{"name": "Pure Distillation","desc": "Distillery production x2",  "type": "building", "building_index": 2, "multiplier": 2.0, "cost": 50.0, "cost_resource": 2},
+	],
+	[  # Level 2
+		{"name": "Mana Attunement", "desc": "Click gives x3 Mana",        "type": "click",    "multiplier": 3.0, "cost": 50.0,  "cost_resource": 0},
+		{"name": "Spell Mastery",   "desc": "Spellbook production x2",    "type": "building", "building_index": 1, "multiplier": 2.0, "cost": 30.0, "cost_resource": 1},
+		{"name": "Arcane Focus",    "desc": "Arcane Tower production x2", "type": "building", "building_index": 2, "multiplier": 2.0, "cost": 50.0, "cost_resource": 1},
+	],
+]
+
+# ── Prestige goals ────────────────────────────────────────────────────────────
+# How much of R2 is needed to unlock the prestige run
+const PRESTIGE_GOALS: Array[float] = [1000.0, 500.0, 250.0]
+const PRESTIGE_GOAL_LABELS: Array = ["1000 Gold", "500 Essence", "250 Arcanum"]
+
+# ── Relics ────────────────────────────────────────────────────────────────────
+# type: "production" | "cost_reduction" | "click" | "offline" | "start_bonus"
+const RELICS: Array = [
+	{"id": "iron_will",         "name": "Iron Will",         "icon": "🛡",  "desc": "+50% all production",         "type": "production",     "value": 0.5},
+	{"id": "alchemists_touch",  "name": "Alchemist's Touch", "icon": "⚗",  "desc": "Buildings cost -20%",          "type": "cost_reduction", "value": 0.2},
+	{"id": "time_warp",         "name": "Time Warp",         "icon": "⏳",  "desc": "Offline progress x2",          "type": "offline",        "value": 2.0},
+	{"id": "golden_touch",      "name": "Golden Touch",      "icon": "✋",  "desc": "Click gives x5 (stacks)",      "type": "click",          "value": 5.0},
+	{"id": "ancient_knowledge", "name": "Ancient Knowledge", "icon": "📖",  "desc": "Start with 10% of prev. R2",   "type": "start_bonus",    "value": 0.1},
+	{"id": "eternal_flame",     "name": "Eternal Flame",     "icon": "🔥",  "desc": "+100% all production",         "type": "production",     "value": 1.0},
+	{"id": "swift_hands",       "name": "Swift Hands",       "icon": "⚡",  "desc": "+25% all production",          "type": "production",     "value": 0.25},
+	{"id": "mana_well",         "name": "Mana Well",         "icon": "💎",  "desc": "Buildings cost -10%",          "type": "cost_reduction", "value": 0.1},
+]
+
+# ── Run enemies [level] ───────────────────────────────────────────────────────
+# Each level has 4 regular enemies + 1 boss
+const ENEMIES: Array = [
+	[  # Level 0 — Miner's Run
+		{"name": "Cave Rat",     "hp": 30,  "atk": 8,  "special": "Gnaw",     "special_dmg": 15, "special_desc": "Bites for 15"},
+		{"name": "Stone Golem",  "hp": 55,  "atk": 12, "special": "Smash",    "special_dmg": 20, "special_desc": "Smashes for 20"},
+		{"name": "Iron Guard",   "hp": 75,  "atk": 14, "special": "Bash",     "special_dmg": 22, "special_desc": "Bashes for 22"},
+		{"name": "Cave Troll",   "hp": 90,  "atk": 16, "special": "Rampage",  "special_dmg": 28, "special_desc": "Rampages for 28"},
+		{"name": "Mountain King","hp": 150, "atk": 18, "special": "Avalanche","special_dmg": 40, "special_desc": "Triggers avalanche (40)", "is_boss": true},
+	],
+	[  # Level 1 — Alchemist's Run
+		{"name": "Herb Sprite",   "hp": 35,  "atk": 9,  "special": "Sting",    "special_dmg": 16, "special_desc": "Stings for 16"},
+		{"name": "Poison Slime",  "hp": 60,  "atk": 13, "special": "Corrode",  "special_dmg": 22, "special_desc": "Corrodes for 22"},
+		{"name": "Flask Fiend",   "hp": 80,  "atk": 15, "special": "Splash",   "special_dmg": 24, "special_desc": "Splashes for 24"},
+		{"name": "Essence Wraith","hp": 100, "atk": 17, "special": "Drain",    "special_dmg": 30, "special_desc": "Drains for 30"},
+		{"name": "Grand Alchemist","hp":170, "atk": 20, "special": "Transmute","special_dmg": 45, "special_desc": "Transmutes for 45", "is_boss": true},
+	],
+	[  # Level 2 — Mage's Run
+		{"name": "Mana Wisp",    "hp": 40,  "atk": 10, "special": "Zap",       "special_dmg": 18, "special_desc": "Zaps for 18"},
+		{"name": "Spell Shade",  "hp": 65,  "atk": 14, "special": "Hex",       "special_dmg": 24, "special_desc": "Hexes for 24"},
+		{"name": "Rune Golem",   "hp": 85,  "atk": 16, "special": "Overload",  "special_dmg": 26, "special_desc": "Overloads for 26"},
+		{"name": "Arcane Golem", "hp": 110, "atk": 18, "special": "Nullify",   "special_dmg": 32, "special_desc": "Nullifies for 32"},
+		{"name": "The Archmage", "hp": 190, "atk": 22, "special": "Obliterate","special_dmg": 50, "special_desc": "Obliterates for 50", "is_boss": true},
+	],
+]
+
+# Player special action per prestige level
+const PLAYER_SPECIALS: Array = [
+	{"name": "Shatter",      "desc": "Deal 2x attack damage"},
+	{"name": "Brew",         "desc": "Heal 25 HP"},
+	{"name": "Arcane Blast", "desc": "Deal 3x attack damage"},
+]
+
+# Building cost scale factor
+const COST_SCALE: float = 1.15
+
+# Offline progress cap in seconds
+const OFFLINE_CAP_SECONDS: float = 8.0 * 3600.0  # 8 hours
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+static func format_number(n: float) -> String:
+	if n < 1000.0:
+		return str(int(n))
+	elif n < 1_000_000.0:
+		return "%.1fK" % (n / 1000.0)
+	elif n < 1_000_000_000.0:
+		return "%.1fM" % (n / 1_000_000.0)
+	else:
+		return "%.1fB" % (n / 1_000_000_000.0)
+
+static func building_cost(level: int, building_index: int, count: int) -> float:
+	var base = BUILDINGS[level][building_index]["base_cost"]
+	return floor(base * pow(COST_SCALE, count))
