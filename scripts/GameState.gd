@@ -161,14 +161,25 @@ func start_prestige_run() -> void:
 
 	player_hp = player_max_hp
 
-	combat_log.append("Run started — ATK: %d (+%d)   HP: %d (+%d)" % [
-		player_attack, player_attack - 12, player_max_hp, player_max_hp - 100])
+	var diff_pct = int((enemy_scale() - 1.0) * 100)
+	var diff_str = "Difficulty: ×%.2f (Ascension #%d)" % [enemy_scale(), ascension_count] if ascension_count > 0 else "Difficulty: Normal"
+	combat_log.append("Run started — ATK: %d (+%d)   HP: %d (+%d)   %s" % [
+		player_attack, player_attack - 12, player_max_hp, player_max_hp - 100, diff_str])
 	_load_enemy(run_room)
 	run_started.emit()
+
+func enemy_scale() -> float:
+	return pow(1.15, ascension_count)  # +15% HP per ascension, compounding
 
 func _load_enemy(room: int) -> void:
 	var enemies = GameData.ENEMIES[prestige_level]
 	enemy_data = enemies[room].duplicate()
+	var scale = enemy_scale()
+	enemy_data["hp"]          = int(enemy_data["hp"]          * scale)
+	enemy_data["atk"]         = int(enemy_data["atk"]         * pow(1.10, ascension_count))
+	enemy_data["special_dmg"] = int(enemy_data["special_dmg"] * pow(1.10, ascension_count))
+	# Update the special_desc to reflect scaled damage
+	enemy_data["special_desc"] = enemy_data["special_desc"].split("(")[0].strip_edges() + " (%d)" % enemy_data["special_dmg"]
 	enemy_hp = enemy_data["hp"]
 	_pick_enemy_action()
 

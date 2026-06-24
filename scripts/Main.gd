@@ -725,8 +725,9 @@ func _on_game_complete(ascension: int, relics_collected: Array) -> void:
 	else:
 		_lbl_ascension_relics.text = "Relics collected this run:\n" + "   ".join(relic_names)
 
-	var next_bonus = int((ascension) * 10)
-	_lbl_ascension_bonus.text = "Next run bonus: +%d%% production (permanent)" % next_bonus
+	var next_prod = int(ascension * 10)
+	var next_diff = int((pow(1.15, ascension) - 1.0) * 100)
+	_lbl_ascension_bonus.text = "Next run:  +%d%% production   |   enemies +%d%% HP/ATK" % [next_prod, next_diff]
 
 func _on_ascend_pressed() -> void:
 	_ascension_panel.visible = false
