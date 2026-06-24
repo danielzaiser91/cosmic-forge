@@ -61,6 +61,11 @@ var _milestone_strip: HBoxContainer
 var _lbl_offline_time: Label
 var _btn_offline_ok: Button
 
+# Tutorial + score refs
+var _tutorial_panel: Control
+var _lbl_score: Label
+var _lbl_ascension_score: Label
+
 # ── Setup ─────────────────────────────────────────────────────────────────────
 func _ready() -> void:
 	_set_bg()
@@ -69,8 +74,12 @@ func _ready() -> void:
 	_build_relic_panel()
 	_build_ascension_panel()
 	_build_offline_panel()
+	_build_tutorial_panel()
 	_connect_signals()
 	_refresh_ui()
+	if not GameState.tutorial_shown:
+		await get_tree().process_frame
+		_tutorial_panel.visible = true
 
 func _set_bg() -> void:
 	var style = StyleBoxFlat.new()
@@ -103,6 +112,11 @@ func _build_idle_panel() -> void:
 	hrow.add_child(spacer2)
 	_lbl_ascension_count = _make_label("Ascension #0", 12, C_DIM)
 	hrow.add_child(_lbl_ascension_count)
+	var spacer3 = Control.new(); spacer3.custom_minimum_size = Vector2(8, 0)
+	hrow.add_child(spacer3)
+	_lbl_score = _make_label("", 12, C_PURPLE, true)
+	_lbl_score.visible = false
+	hrow.add_child(_lbl_score)
 
 	# Prestige run button
 	_btn_prestige = _make_button("⚔  Start Prestige Run", C_PURPLE)
@@ -470,6 +484,11 @@ func _build_ascension_panel() -> void:
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	center.add_child(sub)
 
+	_lbl_ascension_score = _make_label("", 20, C_PURPLE, true)
+	_lbl_ascension_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_lbl_ascension_score.visible = false
+	center.add_child(_lbl_ascension_score)
+
 	var btn = _make_button("⚡  ASCEND  —  Start Run #%d" % (GameState.ascension_count + 1), C_GOLD)
 	btn.custom_minimum_size = Vector2(300, 50)
 	btn.pressed.connect(_on_ascend_pressed)
@@ -606,6 +625,13 @@ func _refresh_idle() -> void:
 	_lbl_progress.text = "Goal: %s / %s %s  (%.0f%%)" % [
 		GameData.format_number(current_r2), GameData.format_number(goal), r2_name, pct]
 
+	# Score (visible after all milestones done)
+	if GameState.ascension_count >= GameData.MILESTONE_MAX:
+		_lbl_score.text = "🏆 %s" % GameData.format_number(GameState.cosmic_score())
+		_lbl_score.visible = true
+	else:
+		_lbl_score.visible = false
+
 	# Prestige button
 	_btn_prestige.disabled = not GameState.run_available
 	if GameState.run_available:
@@ -669,18 +695,29 @@ func _refresh_run() -> void:
 
 # ── Event handlers ────────────────────────────────────────────────────────────
 func _on_click_pressed() -> void:
+	_play_tone(800.0, 0.04, 0.12)
 	GameState.click_resource()
 
 func _on_buy_building(index: int) -> void:
+	var before = GameState.building_counts[index]
 	GameState.buy_building(index)
+	if GameState.building_counts[index] > before:
+		_play_tone(660.0, 0.1, 0.2)
 
 func _on_buy_upgrade(index: int) -> void:
+	var before = GameState.upgrades_bought[index]
 	GameState.buy_upgrade(index)
+	if GameState.upgrades_bought[index] and not before:
+		_play_sequence([660.0, 880.0, 1100.0], 0.07)
 
 func _on_prestige_pressed() -> void:
 	GameState.start_prestige_run()
 
 func _on_run_action(action: String) -> void:
+	match action:
+		"attack":  _play_tone(440.0, 0.07, 0.2)
+		"shield":  _play_tone(300.0, 0.09, 0.15)
+		"special": _play_sequence([440.0, 550.0, 660.0], 0.06)
 	GameState.player_action(action)
 	_refresh_run()
 
@@ -691,8 +728,10 @@ func _on_run_started() -> void:
 
 func _on_run_ended(victory: bool, relic_choices: Array) -> void:
 	if victory:
+		_play_sequence([523.0, 659.0, 784.0, 1047.0], 0.12)
 		_show_relic_choices(relic_choices)
 	else:
+		_play_sequence([400.0, 300.0, 200.0], 0.14)
 		_run_panel.visible = false
 		_idle_panel.visible = true
 		_show_defeat_message()
@@ -731,10 +770,13 @@ func _on_relic_chosen(index: int) -> void:
 		_idle_panel.visible = true
 		_refresh_idle()
 
-func _on_prestige_happened(_new_level: int) -> void:
+func _on_prestige_happened(new_level: int) -> void:
+	if new_level > 0:
+		_play_sequence([440.0, 554.0, 659.0, 880.0], 0.1)
 	_refresh_idle()
 
 func _on_game_complete(ascension: int, relics_collected: Array) -> void:
+	_play_sequence([523.0, 659.0, 784.0, 1047.0, 784.0, 1047.0, 1319.0], 0.11)
 	_relic_panel.visible = false
 	_run_panel.visible = false
 	_idle_panel.visible = false
@@ -800,6 +842,10 @@ func _on_game_complete(ascension: int, relics_collected: Array) -> void:
 		end_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		end_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_milestone_strip.get_parent().add_child(end_lbl)
+		_lbl_ascension_score.text = "🏆 Cosmic Score: %s" % GameData.format_number(GameState.cosmic_score())
+		_lbl_ascension_score.visible = true
+	else:
+		_lbl_ascension_score.visible = false
 
 func _on_ascend_pressed() -> void:
 	_ascension_panel.visible = false
@@ -898,3 +944,74 @@ func _add_vsep(parent: Control) -> void:
 	var sep = VSeparator.new()
 	sep.add_theme_color_override("color", C_BORDER)
 	parent.add_child(sep)
+
+# ── Tutorial ──────────────────────────────────────────────────────────────────
+func _build_tutorial_panel() -> void:
+	_tutorial_panel = PanelContainer.new()
+	_tutorial_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_tutorial_panel.visible = false
+	var bg = StyleBoxFlat.new()
+	bg.bg_color = Color(0.03, 0.03, 0.08, 0.93)
+	_tutorial_panel.add_theme_stylebox_override("panel", bg)
+	add_child(_tutorial_panel)
+
+	var center = VBoxContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	center.custom_minimum_size = Vector2(560, 0)
+	center.add_theme_constant_override("separation", 14)
+	_tutorial_panel.add_child(center)
+
+	var ttl = _make_label("⚒  WILLKOMMEN BEI COSMIC FORGE  ⚒", 20, C_GOLD, true)
+	ttl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	center.add_child(ttl)
+	center.add_child(_make_hsep())
+
+	var sections = [
+		["⛏  IDLE PHASE", "Klicke auf den Button um Ressourcen zu sammeln.\nBaue Gebäude für automatische Produktion.\nKaufe Upgrades um alles zu beschleunigen.", C_BLUE],
+		["⚔  PRESTIGE RUN", "Wenn die dritte Ressource das Ziel erreicht,\nstarte einen Run durch 5 Räume + Boss.\nSieg = Relikt + nächste Prestige-Stufe.", C_PURPLE],
+		["✨  ASCENSION", "3 Prestige-Stufen (Miner → Alchemist → Mage)\nergeben eine Ascension — vollständiger Reset,\naber permanenter +10% Produktionsbonus.", C_GREEN],
+	]
+	for sec_data in sections:
+		var sec = VBoxContainer.new()
+		sec.add_theme_constant_override("separation", 3)
+		center.add_child(sec)
+		var h = _make_label(sec_data[0], 14, sec_data[2], true)
+		sec.add_child(h)
+		var body = _make_label(sec_data[1], 12, C_TEXT)
+		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		sec.add_child(body)
+
+	center.add_child(_make_hsep())
+	var btn = _make_button("⚒  Verstanden — Los geht's!", C_GOLD)
+	btn.custom_minimum_size = Vector2(280, 44)
+	btn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	btn.pressed.connect(_on_tutorial_ok)
+	center.add_child(btn)
+
+func _on_tutorial_ok() -> void:
+	_play_sequence([523.0, 659.0, 784.0], 0.08)
+	_tutorial_panel.visible = false
+	GameState.tutorial_shown = true
+	SaveManager.save_game()
+
+# ── Audio ─────────────────────────────────────────────────────────────────────
+func _play_tone(freq: float, duration: float, vol: float = 0.25) -> void:
+	var player := AudioStreamPlayer.new()
+	add_child(player)
+	var gen := AudioStreamGenerator.new()
+	gen.mix_rate = 22050.0
+	gen.buffer_length = duration + 0.05
+	player.stream = gen
+	player.play()
+	var pb := player.get_stream_playback() as AudioStreamGeneratorPlayback
+	var frames := int(22050.0 * duration)
+	for i in frames:
+		var t := float(i) / 22050.0
+		var env := 1.0 - (t / duration)
+		pb.push_frame(Vector2.ONE * sin(TAU * freq * t) * env * vol)
+	get_tree().create_timer(duration + 0.15).timeout.connect(player.queue_free)
+
+func _play_sequence(freqs: Array, step_dur: float, vol: float = 0.2) -> void:
+	for f in freqs:
+		_play_tone(f, step_dur, vol)
+		await get_tree().create_timer(step_dur * 0.75).timeout

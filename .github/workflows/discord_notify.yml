@@ -4,6 +4,7 @@ on:
   workflow_run:
     workflows: ["Export & Deploy to GitHub Pages"]
     types: [completed]
+  workflow_dispatch:
 
 permissions:
   contents: write

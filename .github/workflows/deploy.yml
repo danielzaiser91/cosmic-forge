@@ -3,6 +3,12 @@ name: Export & Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+    paths:
+      - 'scripts/**'
+      - 'scenes/**'
+      - 'project.godot'
+      - 'export_presets.cfg'
+      - 'icon.svg'
   workflow_dispatch:
 
 permissions:

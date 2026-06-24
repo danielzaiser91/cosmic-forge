@@ -10,6 +10,8 @@ signal milestone_reached(milestone: Dictionary)
 
 # ── Meta progress (survives full reset) ───────────────────────────────────────
 var ascension_count: int = 0           # completed full runs (Miner→Alch→Mage)
+var tutorial_shown: bool = false
+var lifetime_relics: int = 0
 
 # ── Idle state ────────────────────────────────────────────────────────────────
 var prestige_level: int = 0            # 0=Miner, 1=Alchemist, 2=Mage
@@ -316,9 +318,13 @@ func _on_run_lost() -> void:
 	run_active = false
 	run_ended.emit(false, [])
 
+func cosmic_score() -> int:
+	return ascension_count * 1000 + lifetime_relics * 50
+
 func choose_relic(relic_id: String) -> void:
 	if relic_id != "":
 		relics_owned.append(relic_id)
+		lifetime_relics += 1
 		_recalculate_multipliers()
 	_do_prestige()
 
@@ -382,11 +388,15 @@ func to_dict() -> Dictionary:
 		"building_counts": building_counts,
 		"upgrades_bought": upgrades_bought,
 		"relics_owned": relics_owned,
+		"tutorial_shown": tutorial_shown,
+		"lifetime_relics": lifetime_relics,
 		"timestamp": Time.get_unix_time_from_system(),
 	}
 
 func from_dict(d: Dictionary) -> void:
 	ascension_count  = d.get("ascension_count", 0)
+	tutorial_shown   = d.get("tutorial_shown", false)
+	lifetime_relics  = d.get("lifetime_relics", 0)
 	prestige_level   = d.get("prestige_level", 0)
 	var r = d.get("resources", [0.0, 0.0, 0.0])
 	resources        = [float(r[0]), float(r[1]), float(r[2])]
