@@ -1,0 +1,60 @@
+name: Export & Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export-web:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect Godot version
+        id: godot_ver
+        run: |
+          VERSION=$(grep -oP '(?<=PackedStringArray\(")[0-9]+\.[0-9]+' project.godot | head -1)
+          echo "version=${VERSION}-stable" >> $GITHUB_OUTPUT
+          echo "templates_dir=${VERSION}.stable" >> $GITHUB_OUTPUT
+          echo "Detected Godot version: ${VERSION}-stable"
+
+      - name: Download Godot headless
+        run: |
+          VER="${{ steps.godot_ver.outputs.version }}"
+          wget -q "https://github.com/godotengine/godot/releases/download/${VER}/Godot_v${VER}_linux.x86_64.zip" -O godot.zip
+          unzip -q godot.zip
+          sudo mv "Godot_v${VER}_linux.x86_64" /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          godot --version
+
+      - name: Download export templates
+        run: |
+          VER="${{ steps.godot_ver.outputs.version }}"
+          TDIR="$HOME/.local/share/godot/export_templates/${{ steps.godot_ver.outputs.templates_dir }}"
+          mkdir -p "$TDIR"
+          wget -q "https://github.com/godotengine/godot/releases/download/${VER}/Godot_v${VER}_export_templates.tpz" -O templates.tpz
+          unzip -q templates.tpz
+          mv templates/* "$TDIR/"
+          echo "Templates installed to $TDIR"
+          ls "$TDIR" | head -5
+
+      - name: Export to Web
+        run: |
+          mkdir -p build/web
+          godot --headless --export-release "Web" "$PWD/build/web/index.html"
+          echo "Export complete:"
+          ls -lh build/web/
+
+      - name: Add .nojekyll (required for Godot assets)
+        run: touch build/web/.nojekyll
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: build/web
