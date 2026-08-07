@@ -51,10 +51,10 @@ jobs:
           H1="# 🚀 Cosmic Forge v${VERSION} — ${TITLE}"
           H2="### 📝 Änderungen"
           LINK="🎮 **[Jetzt spielen](https://danielzaiser91.github.io/cosmic-forge/)**"
-          printf '@everyone\n\n%s\n\n%s\n\n%s\n%s\n\n%s\n' \
+          printf '<@&1535341247282020372>\n\n%s\n\n%s\n\n%s\n%s\n\n%s\n' \
             "$H1" "$DESC" "$H2" "$CHANGES" "$LINK" > /tmp/text.txt
           jq -n --rawfile content /tmp/text.txt \
-            '{"content":$content,"allowed_mentions":{"parse":["everyone"]},"flags":4}' \
+            '{"content":$content,"allowed_mentions":{"roles":["1535341247282020372"]},"flags":4}' \
             > /tmp/payload.json
           cat /tmp/payload.json
 
